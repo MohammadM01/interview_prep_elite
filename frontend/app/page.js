@@ -1,3 +1,5 @@
+import AuthTester from '@/components/AuthTester';
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] flex flex-col justify-between p-8 md:p-16">
@@ -13,7 +15,7 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] text-[#18181B] border border-[#E4E4E7]">
-            Step 1 Setup Active
+            Step 2 MongoDB & Auth Active
           </span>
         </div>
       </header>
@@ -27,7 +29,7 @@ export default function HomePage() {
         </h2>
         <p className="text-[#71717A] text-base leading-relaxed mb-8">
           The foundation for the Next.js frontend and Express backend is verified and operational.
-          The upcoming phases will introduce authentication, research crawling, structured requirement extraction, and flashcard practice.
+          MongoDB Atlas session-based authentication is now configured with Argon2 password hashing.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-[#E4E4E7] pt-8">
@@ -40,10 +42,12 @@ export default function HomePage() {
             <p className="text-sm font-medium text-[#18181B]">Node.js 24 + Express</p>
           </div>
           <div className="p-4 rounded-lg bg-white border border-[#E4E4E7]">
-            <p className="text-xs text-[#71717A] mb-1">Batch Evaluator</p>
-            <p className="text-sm font-medium text-[#18181B]">CLI Pipeline Ready</p>
+            <p className="text-xs text-[#71717A] mb-1">Database Layer</p>
+            <p className="text-sm font-medium text-[#18181B]">MongoDB Atlas Connected</p>
           </div>
         </div>
+
+        <AuthTester />
       </section>
 
       <footer className="border-t border-[#E4E4E7] pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#71717A] gap-4">

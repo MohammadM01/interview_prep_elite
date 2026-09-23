@@ -1,9 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import session from 'express-session';
+import MongoStore from 'connect-mongo';
 import { config } from './config/index.js';
+import { getMongoClientPromise, checkDatabaseHealth } from './config/database.js';
+import authRoutes from './routes/auth.js';
 
 const app = express();
+
+app.set('trust proxy', 1);
 
 app.use(cors({
   origin: config.corsOrigin,
@@ -14,14 +20,41 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 
-app.get('/api/health', (req, res) => {
+// Express session with MongoDB persistence
+export const sessionStore = MongoStore.create({
+  clientPromise: getMongoClientPromise(),
+  dbName: 'interview_prep_elite',
+  collectionName: 'sessions',
+  ttl: 14 * 24 * 60 * 60,
+  autoRemove: 'disabled'
+});
+
+app.use(session({
+  name: 'ipe.sid',
+  secret: config.sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  store: sessionStore,
+  cookie: {
+    httpOnly: true,
+    secure: config.env === 'production',
+    sameSite: 'lax',
+    maxAge: 14 * 24 * 60 * 60 * 1000
+  }
+}));
+
+app.get('/api/health', async (req, res) => {
+  const dbStatus = await checkDatabaseHealth();
   res.status(200).json({
     status: 'ok',
     environment: config.env,
+    database: dbStatus,
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
 });
+
+app.use('/api/auth', authRoutes);
 
 app.use((req, res) => {
   res.status(404).json({
