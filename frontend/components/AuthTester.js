@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-export default function AuthTester() {
+export default function AuthTester({ onUserChange }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [mode, setMode] = useState('login');
@@ -22,11 +22,14 @@ export default function AuthTester() {
       if (res.ok) {
         const data = await res.json();
         setCurrentUser(data.user);
+        onUserChange?.(data.user);
       } else {
         setCurrentUser(null);
+        onUserChange?.(null);
       }
     } catch (err) {
       setCurrentUser(null);
+      onUserChange?.(null);
     } finally {
       setAuthLoading(false);
     }
@@ -60,6 +63,7 @@ export default function AuthTester() {
         });
       } else {
         setCurrentUser(data.user);
+        onUserChange?.(data.user);
         setStatusMessage({
           type: 'success',
           text: mode === 'register' ? 'Account registered successfully' : 'Signed in successfully'
@@ -85,6 +89,7 @@ export default function AuthTester() {
         credentials: 'include'
       });
       setCurrentUser(null);
+      onUserChange?.(null);
       setStatusMessage({ type: 'success', text: 'Signed out successfully' });
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Error during logout' });

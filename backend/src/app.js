@@ -6,6 +6,8 @@ import MongoStore from 'connect-mongo';
 import { config } from './config/index.js';
 import { getMongoClientPromise, checkDatabaseHealth } from './config/database.js';
 import authRoutes from './routes/auth.js';
+import kitsRoutes from './routes/kits.js';
+import jobsRoutes from './routes/jobs.js';
 
 const app = express();
 
@@ -55,6 +57,8 @@ app.get('/api/health', async (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/kits', kitsRoutes);
+app.use('/api/generation-jobs', jobsRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

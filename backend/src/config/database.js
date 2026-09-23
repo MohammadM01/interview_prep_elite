@@ -64,8 +64,12 @@ export async function initDatabaseIndexes() {
     const usersCollection = db.collection('users');
     await usersCollection.createIndex({ email: 1 }, { unique: true });
 
+    const kitsCollection = db.collection('kits');
+    await kitsCollection.createIndex({ user_id: 1, created_at: -1 });
+
     const jobsCollection = db.collection('generation_jobs');
     await jobsCollection.createIndex({ user_id: 1, created_at: -1 });
+    await jobsCollection.createIndex({ kit_id: 1 });
 
     console.log('Database indexes initialized successfully');
   } catch (error) {

@@ -1,6 +1,12 @@
+'use client';
+
+import { useState } from 'react';
 import AuthTester from '@/components/AuthTester';
+import KitCreator from '@/components/KitCreator';
 
 export default function HomePage() {
+  const [currentUser, setCurrentUser] = useState(null);
+
   return (
     <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] flex flex-col justify-between p-8 md:p-16">
       <header className="flex items-center justify-between border-b border-[#E4E4E7] pb-6">
@@ -15,7 +21,7 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] text-[#18181B] border border-[#E4E4E7]">
-            Step 2 MongoDB & Auth Active
+            Step 3 Kit Foundation Active
           </span>
         </div>
       </header>
@@ -28,8 +34,7 @@ export default function HomePage() {
           Personalized interview preparation powered by deterministic research.
         </h2>
         <p className="text-[#71717A] text-base leading-relaxed mb-8">
-          The foundation for the Next.js frontend and Express backend is verified and operational.
-          MongoDB Atlas session-based authentication is now configured with Argon2 password hashing.
+          Enter a role job description, target company address, and interview timeline to initialize your preparation kit and generation job pipeline.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-[#E4E4E7] pt-8">
@@ -47,7 +52,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        <AuthTester />
+        <AuthTester onUserChange={setCurrentUser} />
+        <KitCreator currentUser={currentUser} />
       </section>
 
       <footer className="border-t border-[#E4E4E7] pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#71717A] gap-4">

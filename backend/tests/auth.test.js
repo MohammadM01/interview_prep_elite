@@ -20,7 +20,6 @@ test('Authentication API Test Suite', async (t) => {
         await db.collection('sessions').deleteMany({});
       } catch {}
     }
-    await closeDatabaseConnection();
   });
 
   await t.test('1. register success creates user and returns safe user data with session cookie', async () => {
