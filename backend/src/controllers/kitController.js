@@ -172,3 +172,27 @@ export async function getKitResearch(req, res) {
     });
   }
 }
+
+export async function startKitAnalysis(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitAnalysis } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitAnalysis({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit analysis error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'ANALYSIS_FAILED',
+        message: error.message || 'An error occurred during LLM analysis'
+      }
+    });
+  }
+}
+

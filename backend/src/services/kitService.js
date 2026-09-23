@@ -98,6 +98,12 @@ export async function getKitById(kitId, userId) {
       user_id: kit.user_id.toString(),
       status: kit.status,
       source: kit.source,
+      company_brief: kit.company_brief,
+      role: kit.role,
+      questions: kit.questions || [],
+      flashcards: kit.flashcards || [],
+      schedule: kit.schedule || null,
+      coverage: kit.coverage || null,
       input: kit.input,
       created_at: kit.created_at,
       updated_at: kit.updated_at

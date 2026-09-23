@@ -33,7 +33,7 @@ export async function executeCompanyResearch(companyUrl, options = {}) {
   const pages = [];
   const pagesUsed = [];
 
-  onProgress?.({ stage: 'checking_robots', progress: 10 });
+  await onProgress?.({ stage: 'checking_robots', progress: 10 });
 
   // Stage 1: Check robots.txt
   let robotsRules = [];
@@ -51,7 +51,7 @@ export async function executeCompanyResearch(companyUrl, options = {}) {
     warnings.push(`Robots check error: ${err.message}`);
   }
 
-  onProgress?.({ stage: 'fetching_homepage', progress: 25 });
+  await onProgress?.({ stage: 'fetching_homepage', progress: 25 });
 
   // Stage 2: Fetch and clean homepage
   let homepageFetch;
@@ -84,7 +84,7 @@ export async function executeCompanyResearch(companyUrl, options = {}) {
   });
   pagesUsed.push(cleanedHomepage.url);
 
-  onProgress?.({ stage: 'discovering_links', progress: 50 });
+  await onProgress?.({ stage: 'discovering_links', progress: 50 });
 
   // Stage 3: Extract and rank links
   const discoveredLinks = extractAndFilterLinks(
@@ -96,7 +96,7 @@ export async function executeCompanyResearch(companyUrl, options = {}) {
   const candidateSlots = Math.max(0, maxPages - 1);
   const rankedCandidates = rankLinks(discoveredLinks, candidateSlots);
 
-  onProgress?.({
+  await onProgress?.({
     stage: 'fetching_pages',
     progress: 60,
     discoveredCount: discoveredLinks.length,
@@ -146,10 +146,10 @@ export async function executeCompanyResearch(companyUrl, options = {}) {
 
     completedCandidateSteps++;
     const pageProgress = 60 + Math.round((completedCandidateSteps / Math.max(1, rankedCandidates.length)) * 35);
-    onProgress?.({ stage: 'fetching_pages', progress: Math.min(95, pageProgress) });
+    await onProgress?.({ stage: 'fetching_pages', progress: Math.min(95, pageProgress) });
   }
 
-  onProgress?.({ stage: 'research_complete', progress: 100 });
+  await onProgress?.({ stage: 'research_complete', progress: 100 });
 
   return {
     company_url: companyUrl,

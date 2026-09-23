@@ -16,6 +16,51 @@ export default function KitCreator({ currentUser }) {
   const [jobStatus, setJobStatus] = useState(null);
   const [researchState, setResearchState] = useState({});
 
+  const [analysisState, setAnalysisState] = useState({});
+
+  async function handleTriggerAnalysis(kitId) {
+    setAnalysisState((prev) => ({
+      ...prev,
+      [kitId]: { status: 'running', stage: 'requirements_extraction', message: 'Analyzing job requirements...' }
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/kits/${kitId}/analyze`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAnalysisState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: 'failed',
+            message: `Analysis failed: ${data.error?.message || 'Error occurred'}`
+          }
+        }));
+      } else {
+        const reqCount = data.kit?.role?.requirements?.length || 0;
+        const roleTitle = data.kit?.role?.title || 'Analyzed Role';
+        setAnalysisState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: 'complete',
+            stage: 'analysis_completed',
+            message: `Analysis completed: ${roleTitle} (${reqCount} requirements)`,
+            data: data.kit
+          }
+        }));
+        await loadKits();
+      }
+    } catch {
+      setAnalysisState((prev) => ({
+        ...prev,
+        [kitId]: { status: 'failed', message: 'Analysis failed: Network error' }
+      }));
+    }
+  }
+
   async function handleTriggerResearch(kitId) {
     setResearchState((prev) => ({
       ...prev,
@@ -319,6 +364,7 @@ export default function KitCreator({ currentUser }) {
           <div className="divide-y divide-[#E4E4E7]">
             {userKits.map((kit) => {
               const rState = researchState[kit.id];
+              const aState = analysisState[kit.id];
               return (
                 <div key={kit.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div>
@@ -336,14 +382,30 @@ export default function KitCreator({ currentUser }) {
                         {rState.message}
                       </p>
                     )}
+                    {aState && (
+                      <p className={`mt-0.5 text-[11px] font-medium ${
+                        aState.status === 'running' ? 'text-blue-600' :
+                        aState.status === 'complete' ? 'text-emerald-700' :
+                        'text-rose-600'
+                      }`}>
+                        {aState.message}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleTriggerResearch(kit.id)}
                       disabled={rState?.status === 'running'}
-                      className="px-3 py-1 text-xs rounded border border-[#E4E4E7] bg-white hover:bg-zinc-50 text-[#18181B] disabled:opacity-50 transition-colors"
+                      className="px-2.5 py-1 text-xs rounded border border-[#E4E4E7] bg-white hover:bg-zinc-50 text-[#18181B] disabled:opacity-50 transition-colors"
                     >
-                      {rState?.status === 'running' ? 'Researching...' : 'Research Company'}
+                      {rState?.status === 'running' ? 'Researching...' : '1. Research'}
+                    </button>
+                    <button
+                      onClick={() => handleTriggerAnalysis(kit.id)}
+                      disabled={aState?.status === 'running'}
+                      className="px-2.5 py-1 text-xs rounded border border-[#E4E4E7] bg-[#18181B] hover:bg-zinc-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {aState?.status === 'running' ? 'Analyzing...' : '2. Analyze Role'}
                     </button>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                       {kit.status}
