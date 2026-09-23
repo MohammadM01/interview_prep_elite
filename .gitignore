@@ -1,3 +1,8 @@
+# Internal notes
+notes/
+.agent-notes/
+scratch/
+
 # Logs
 logs
 *.log

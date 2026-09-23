@@ -1,0 +1,8 @@
+[
+  {
+    "id": "case-01",
+    "jd": "Senior Backend Engineer\n\nWe are looking for a Senior Backend Engineer to build resilient distributed services. Requirements:\nMust have 5+ years of experience with Node.js and distributed systems.\nMust have strong understanding of database indexing, transactions, and REST APIs.\nBonus points for experience with Redis caching and Docker.",
+    "company_url": "https://example.com",
+    "days": 5
+  }
+]

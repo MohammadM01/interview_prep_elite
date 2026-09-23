@@ -1,0 +1,55 @@
+export default function HomePage() {
+  return (
+    <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] flex flex-col justify-between p-8 md:p-16">
+      <header className="flex items-center justify-between border-b border-[#E4E4E7] pb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-md bg-[#18181B] text-white flex items-center justify-center font-semibold text-sm">
+            T
+          </div>
+          <div>
+            <h1 className="text-base font-semibold tracking-tight">Trao Prep</h1>
+            <p className="text-xs text-[#71717A]">AI Interview Preparation Kit</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] text-[#18181B] border border-[#E4E4E7]">
+            Step 1 Setup Active
+          </span>
+        </div>
+      </header>
+
+      <section className="max-w-2xl my-auto py-12">
+        <p className="text-xs uppercase tracking-widest text-[#71717A] font-medium mb-3">
+          Full Stack Assessment Foundation
+        </p>
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[#18181B] mb-4">
+          Personalized interview preparation powered by deterministic research.
+        </h2>
+        <p className="text-[#71717A] text-base leading-relaxed mb-8">
+          The foundation for the Next.js frontend and Express backend is verified and operational.
+          The upcoming phases will introduce authentication, research crawling, structured requirement extraction, and flashcard practice.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-[#E4E4E7] pt-8">
+          <div className="p-4 rounded-lg bg-white border border-[#E4E4E7]">
+            <p className="text-xs text-[#71717A] mb-1">Frontend Service</p>
+            <p className="text-sm font-medium text-[#18181B]">Next.js 16 App Router</p>
+          </div>
+          <div className="p-4 rounded-lg bg-white border border-[#E4E4E7]">
+            <p className="text-xs text-[#71717A] mb-1">Backend Service</p>
+            <p className="text-sm font-medium text-[#18181B]">Node.js 24 + Express</p>
+          </div>
+          <div className="p-4 rounded-lg bg-white border border-[#E4E4E7]">
+            <p className="text-xs text-[#71717A] mb-1">Batch Evaluator</p>
+            <p className="text-sm font-medium text-[#18181B]">CLI Pipeline Ready</p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-[#E4E4E7] pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#71717A] gap-4">
+        <p>Trao Engineering Assessment</p>
+        <p>Step 1 Complete Foundation Verification</p>
+      </footer>
+    </main>
+  );
+}
