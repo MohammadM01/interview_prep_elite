@@ -1,8 +1,8 @@
 {
-  "name": "trao-backend",
+  "name": "ipe-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Backend API service for Trao AI Interview Preparation Kit",
+  "description": "Backend API service for Interview Preparation Elite",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

@@ -3,12 +3,12 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] flex flex-col justify-between p-8 md:p-16">
       <header className="flex items-center justify-between border-b border-[#E4E4E7] pb-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-md bg-[#18181B] text-white flex items-center justify-center font-semibold text-sm">
-            T
+          <div className="h-8 px-2.5 rounded-md bg-[#18181B] text-white flex items-center justify-center font-semibold text-xs tracking-wider">
+            IPE
           </div>
           <div>
-            <h1 className="text-base font-semibold tracking-tight">Trao Prep</h1>
-            <p className="text-xs text-[#71717A]">AI Interview Preparation Kit</p>
+            <h1 className="text-base font-semibold tracking-tight">Interview Preparation Elite</h1>
+            <p className="text-xs text-[#71717A]">AI-Powered Personalized Prep Kits</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -47,8 +47,8 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-[#E4E4E7] pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#71717A] gap-4">
-        <p>Trao Engineering Assessment</p>
-        <p>Step 1 Complete Foundation Verification</p>
+        <p>Interview Preparation Elite</p>
+        <p>Interview Preparation Elite (IPE)</p>
       </footer>
     </main>
   );

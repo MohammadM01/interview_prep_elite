@@ -1,6 +1,6 @@
-# Trao AI Interview Preparation Kit
+# Interview Preparation Elite
 
-A full-stack application that transforms job postings into comprehensive, personalized interview preparation kits. Given a job description, company URL, and interview timeline, the system researches company hiring practices, extracts core role requirements, generates categorized technical and behavioral interview questions with flashcards, and computes a deterministic day-by-day study schedule.
+Interview Preparation Elite is a full-stack application that transforms a job description and company website into a personalized interview preparation kit using structured company research, requirement extraction, categorized interview questions, flashcards, and a deterministic study schedule.
 
 ## Technology Stack
 

@@ -1,9 +1,9 @@
 {
-  "name": "trao-interview-kit",
+  "name": "interview-prep-elite",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "AI Interview Preparation Kit - Trao Engineering Assessment",
+  "description": "Interview Preparation Elite (IPE) - Engineering Platform",
   "scripts": {
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
