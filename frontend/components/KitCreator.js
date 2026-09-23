@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-export default function KitCreator({ currentUser }) {
+export default function KitCreator({ currentUser: propUser }) {
+  const { user: contextUser, loading: authLoading } = useAuth();
+  const currentUser = propUser != null ? propUser : contextUser;
   const [jd, setJd] = useState('');
   const [companyUrl, setCompanyUrl] = useState('');
   const [daysAvailable, setDaysAvailable] = useState(5);
@@ -108,6 +111,7 @@ export default function KitCreator({ currentUser }) {
   }
 
   useEffect(() => {
+    if (authLoading) return;
     if (currentUser) {
       loadKits();
     } else {
@@ -115,7 +119,7 @@ export default function KitCreator({ currentUser }) {
       setCreatedResult(null);
       setJobStatus(null);
     }
-  }, [currentUser]);
+  }, [currentUser, authLoading]);
 
   async function loadKits() {
     try {
@@ -204,6 +208,17 @@ export default function KitCreator({ currentUser }) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="mt-8 p-6 rounded-lg bg-white border border-[#E4E4E7] text-center">
+        <h3 className="text-sm font-semibold text-[#18181B] mb-1">Create Interview Kit</h3>
+        <p className="text-xs text-[#71717A] animate-pulse">
+          Loading preparation kits and session...
+        </p>
+      </div>
+    );
   }
 
   if (!currentUser) {

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import AuthTester from '@/components/AuthTester';
 import KitCreator from '@/components/KitCreator';
 
 export default function HomePage() {
-  const [currentUser, setCurrentUser] = useState(null);
+  const { user } = useAuth();
 
   return (
     <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] flex flex-col justify-between p-8 md:p-16">
@@ -52,8 +52,8 @@ export default function HomePage() {
           </div>
         </div>
 
-        <AuthTester onUserChange={setCurrentUser} />
-        <KitCreator currentUser={currentUser} />
+        <AuthTester />
+        <KitCreator currentUser={user} />
       </section>
 
       <footer className="border-t border-[#E4E4E7] pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-[#71717A] gap-4">

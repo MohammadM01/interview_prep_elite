@@ -14,7 +14,7 @@ export async function requireAuth(req, res, next) {
     const user = await findUserById(req.session.userId);
     if (!user) {
       req.session.destroy(() => {});
-      res.clearCookie('connect.sid');
+      res.clearCookie('ipe.sid', { path: '/' });
       return res.status(401).json({
         error: {
           code: 'UNAUTHORIZED',

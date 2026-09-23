@@ -41,6 +41,7 @@ app.use(session({
     httpOnly: true,
     secure: config.env === 'production',
     sameSite: 'lax',
+    path: '/',
     maxAge: 14 * 24 * 60 * 60 * 1000
   }
 }));

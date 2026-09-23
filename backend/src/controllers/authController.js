@@ -139,7 +139,7 @@ export function logout(req, res) {
       });
     }
 
-    res.clearCookie('connect.sid', { path: '/' });
+    res.clearCookie('ipe.sid', { path: '/' });
     return res.status(200).json({
       message: 'Logged out successfully'
     });
