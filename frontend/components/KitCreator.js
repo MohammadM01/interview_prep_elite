@@ -14,7 +14,53 @@ export default function KitCreator({ currentUser }) {
   const [userKits, setUserKits] = useState([]);
   const [loadingKits, setLoadingKits] = useState(false);
   const [jobStatus, setJobStatus] = useState(null);
-  const [checkingJob, setCheckingJob] = useState(false);
+  const [researchState, setResearchState] = useState({});
+
+  async function handleTriggerResearch(kitId) {
+    setResearchState((prev) => ({
+      ...prev,
+      [kitId]: { status: 'running', message: 'Researching company...' }
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/kits/${kitId}/research`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResearchState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: 'failed',
+            message: `Research failed: ${data.error?.message || 'Error occurred'}`
+          }
+        }));
+      } else {
+        const warningsCount = data.research?.warnings?.length || 0;
+        const pagesCount = data.research?.pages_count || data.research?.pages?.length || 0;
+        const isPartial = warningsCount > 0;
+
+        setResearchState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: isPartial ? 'partial' : 'complete',
+            message: isPartial
+              ? `Research partially completed (${pagesCount} pages, ${warningsCount} warnings)`
+              : `Research complete (${pagesCount} pages)`,
+            data: data.research
+          }
+        }));
+        await loadKits();
+      }
+    } catch {
+      setResearchState((prev) => ({
+        ...prev,
+        [kitId]: { status: 'failed', message: 'Research failed: Network error' }
+      }));
+    }
+  }
 
   useEffect(() => {
     if (currentUser) {
@@ -271,24 +317,44 @@ export default function KitCreator({ currentUser }) {
           </p>
         ) : (
           <div className="divide-y divide-[#E4E4E7]">
-            {userKits.map((kit) => (
-              <div key={kit.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div>
-                  <p className="font-medium text-[#18181B]">{kit.company_url || 'Target Company'}</p>
-                  <p className="text-[11px] text-[#71717A]">
-                    {kit.days_available} days schedule · {kit.jd_chars} chars
-                  </p>
+            {userKits.map((kit) => {
+              const rState = researchState[kit.id];
+              return (
+                <div key={kit.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <p className="font-medium text-[#18181B]">{kit.company_url || 'Target Company'}</p>
+                    <p className="text-[11px] text-[#71717A]">
+                      {kit.days_available} days schedule · {kit.jd_chars} chars
+                    </p>
+                    {rState && (
+                      <p className={`mt-1 text-[11px] font-medium ${
+                        rState.status === 'running' ? 'text-blue-600' :
+                        rState.status === 'complete' ? 'text-emerald-700' :
+                        rState.status === 'partial' ? 'text-amber-700' :
+                        'text-rose-600'
+                      }`}>
+                        {rState.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleTriggerResearch(kit.id)}
+                      disabled={rState?.status === 'running'}
+                      className="px-3 py-1 text-xs rounded border border-[#E4E4E7] bg-white hover:bg-zinc-50 text-[#18181B] disabled:opacity-50 transition-colors"
+                    >
+                      {rState?.status === 'running' ? 'Researching...' : 'Research Company'}
+                    </button>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
+                      {kit.status}
+                    </span>
+                    <span className="text-[11px] text-[#A1A1AA]">
+                      {new Date(kit.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-                    {kit.status}
-                  </span>
-                  <span className="text-[11px] text-[#A1A1AA]">
-                    {new Date(kit.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -110,3 +110,65 @@ export async function getGenerationJob(req, res) {
     });
   }
 }
+
+export async function startKitResearch(req, res) {
+  try {
+    const { id } = req.params;
+    const { researchCompany } = await import('../services/researchService.js');
+
+    const result = await researchCompany({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      research: result
+    });
+  } catch (error) {
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: error.message
+        }
+      });
+    }
+
+    console.error('Kit research error:', error);
+    return res.status(500).json({
+      error: {
+        code: error.code || 'RESEARCH_FAILED',
+        message: error.message || 'An error occurred while executing company research'
+      }
+    });
+  }
+}
+
+export async function getKitResearch(req, res) {
+  try {
+    const { id } = req.params;
+    const { getResearchByKitId } = await import('../services/researchService.js');
+
+    const research = await getResearchByKitId(id, req.user.id);
+
+    if (!research) {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'No research data found for this interview kit'
+        }
+      });
+    }
+
+    return res.status(200).json({ research });
+  } catch (error) {
+    console.error('Get kit research error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'RESEARCH_FETCH_FAILED',
+        message: 'An error occurred while retrieving research data'
+      }
+    });
+  }
+}
