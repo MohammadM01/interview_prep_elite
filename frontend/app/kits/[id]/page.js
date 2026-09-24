@@ -504,6 +504,13 @@ export default function KitBuilderPage() {
                 <span>Save Changes</span>
               )}
             </button>
+
+            <Link
+              href={`/kits/${kitId}/practice`}
+              className="px-3 py-1.5 text-xs font-medium rounded border border-[#E4E4E7] bg-white hover:bg-zinc-50 text-[#18181B] transition-colors shadow-xs"
+            >
+              Practice Mode →
+            </Link>
           </div>
         </div>
       </header>

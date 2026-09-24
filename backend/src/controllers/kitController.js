@@ -255,3 +255,65 @@ export async function updateKitHandler(req, res) {
   }
 }
 
+export async function getKitPracticeHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const { getPracticeState } = await import('../services/practiceService.js');
+    const practiceState = await getPracticeState(id, req.user.id);
+    return res.status(200).json(practiceState);
+  } catch (error) {
+    if (error.status === 404 || error.code === 'NOT_FOUND') {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: error.message || 'Interview kit not found'
+        }
+      });
+    }
+
+    console.error('Get kit practice error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'PRACTICE_FETCH_FAILED',
+        message: 'An error occurred while retrieving practice state'
+      }
+    });
+  }
+}
+
+export async function updateKitPracticeHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const { updatePracticeItem } = await import('../services/practiceService.js');
+    const updatedState = await updatePracticeItem(id, req.user.id, req.body);
+    return res.status(200).json(updatedState);
+  } catch (error) {
+    if (error.status === 404 || error.code === 'NOT_FOUND') {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: error.message || 'Interview kit not found'
+        }
+      });
+    }
+
+    if (error.status === 400 || error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.message,
+          issues: error.issues
+        }
+      });
+    }
+
+    console.error('Update kit practice error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'PRACTICE_UPDATE_FAILED',
+        message: 'An error occurred while updating practice state'
+      }
+    });
+  }
+}
+

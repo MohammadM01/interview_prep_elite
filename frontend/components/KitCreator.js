@@ -532,6 +532,12 @@ export default function KitCreator({ currentUser: propUser }) {
                     >
                       Builder Mode →
                     </Link>
+                    <Link
+                      href={`/kits/${kit.id}/practice`}
+                      className="px-2.5 py-1 text-xs rounded border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium transition-colors"
+                    >
+                      Practice →
+                    </Link>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                       {kit.status}
                     </span>
