@@ -3,13 +3,17 @@ import { getDatabase } from '../../config/database.js';
 import { extractRequirementsFromJd, normalizeRequirementIds } from './requirementExtraction.js';
 import { generateCompanyBrief } from './companyBrief.js';
 import { analyzeRole } from './roleAnalysis.js';
-import { Step5KitAnalysisSchema } from './schemas.js';
+import { generateQuestions, validateAndAssignQuestionIds } from './questionGeneration.js';
+import { generateFlashcards, validateAndAssignFlashcardIds } from './flashcardGeneration.js';
+import { Step5KitAnalysisSchema, Step6KitSchema, QuestionItemSchema, FlashcardItemSchema } from './schemas.js';
 import { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
 
 export { extractRequirementsFromJd, normalizeRequirementIds } from './requirementExtraction.js';
 export { generateCompanyBrief, validateAndFilterSources } from './companyBrief.js';
 export { analyzeRole } from './roleAnalysis.js';
-export { Step5KitAnalysisSchema } from './schemas.js';
+export { generateQuestions, validateAndAssignQuestionIds } from './questionGeneration.js';
+export { generateFlashcards, validateAndAssignFlashcardIds } from './flashcardGeneration.js';
+export { Step5KitAnalysisSchema, Step6KitSchema, QuestionItemSchema, FlashcardItemSchema } from './schemas.js';
 export { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
 
 /**
@@ -197,3 +201,219 @@ export async function executeKitAnalysis({ kitId, jobId, userId, options = {} })
     throw error;
   }
 }
+
+/**
+ * Executes full Step 6 generation pipeline:
+ * - Ensures Step 5 analysis exists (runs if missing)
+ * - Stage 1: Question Generation (q1, q2...)
+ * - Stage 2: Flashcard Generation (f1, f2...)
+ * Updates job progress deterministically and persists questions & flashcards to kit.
+ *
+ * @param {Object} params
+ * @param {string|ObjectId} params.kitId
+ * @param {string|ObjectId} [params.jobId]
+ * @param {string|ObjectId} params.userId
+ * @param {Object} [params.options]
+ * @returns {Promise<{ kit: Object, job: Object }>}
+ */
+export async function executeKitGeneration({ kitId, jobId, userId, options = {} }) {
+  const db = getDatabase();
+  const kitObjectId = typeof kitId === 'string' ? new ObjectId(kitId) : kitId;
+  const userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+  const { provider, timeoutMs } = options;
+
+  // STEP 1: Verify kit ownership
+  let kit = await db.collection('kits').findOne({
+    _id: kitObjectId,
+    user_id: userObjectId
+  });
+
+  if (!kit) {
+    const error = new Error('Interview kit not found or unauthorized');
+    error.code = 'NOT_FOUND';
+    error.status = 404;
+    throw error;
+  }
+
+  // Find linked job
+  let jobObjectId = null;
+  if (jobId) {
+    jobObjectId = typeof jobId === 'string' ? new ObjectId(jobId) : jobId;
+  } else {
+    const foundJob = await db.collection('generation_jobs').findOne({
+      kit_id: kitObjectId,
+      user_id: userObjectId
+    });
+    if (foundJob) {
+      jobObjectId = foundJob._id;
+    }
+  }
+
+  const updateJobProgress = async (stage, progress, extraStatus = 'running') => {
+    if (!jobObjectId) return;
+    await db.collection('generation_jobs').updateOne(
+      { _id: jobObjectId, user_id: userObjectId },
+      {
+        $set: {
+          status: extraStatus,
+          stage,
+          progress,
+          updated_at: new Date()
+        }
+      }
+    );
+  };
+
+  // STEP 2: Ensure Step 5 analysis is complete
+  if (!kit.role || !kit.role.requirements || kit.role.requirements.length === 0 || !kit.company_brief) {
+    const analysisRes = await executeKitAnalysis({ kitId, jobId, userId, options });
+    kit = await db.collection('kits').findOne({ _id: kitObjectId });
+  }
+
+  const role = kit.role;
+  const companyBrief = kit.company_brief;
+  const jdText = kit.input?.jd || '';
+
+  let generatedQuestions = kit.questions || [];
+
+  // STEP 3: Question Generation Stage
+  try {
+    await updateJobProgress(
+      GENERATION_STAGES.QUESTION_GENERATION,
+      STAGE_PROGRESS[GENERATION_STAGES.QUESTION_GENERATION]
+    );
+
+    generatedQuestions = await generateQuestions({
+      role,
+      companyBrief,
+      jdText,
+      options: { provider, timeoutMs }
+    });
+
+    // Persist intermediate questions immediately so earlier data is preserved
+    await db.collection('kits').updateOne(
+      { _id: kitObjectId, user_id: userObjectId },
+      {
+        $set: {
+          questions: generatedQuestions,
+          updated_at: new Date()
+        }
+      }
+    );
+  } catch (err) {
+    if (jobObjectId) {
+      await db.collection('generation_jobs').updateOne(
+        { _id: jobObjectId, user_id: userObjectId },
+        {
+          $set: {
+            status: 'failed',
+            stage: 'question_generation_failed',
+            error: {
+              code: err.code || 'QUESTION_GENERATION_FAILED',
+              message: err.message
+            },
+            updated_at: new Date()
+          }
+        }
+      );
+    }
+    throw err;
+  }
+
+  // STEP 4: Flashcard Generation Stage
+  let generatedFlashcards = [];
+  try {
+    await updateJobProgress(
+      GENERATION_STAGES.FLASHCARD_GENERATION,
+      STAGE_PROGRESS[GENERATION_STAGES.FLASHCARD_GENERATION]
+    );
+
+    generatedFlashcards = await generateFlashcards({
+      requirements: role.requirements,
+      questions: generatedQuestions,
+      companyBrief,
+      role,
+      options: { provider, timeoutMs }
+    });
+  } catch (err) {
+    if (jobObjectId) {
+      await db.collection('generation_jobs').updateOne(
+        { _id: jobObjectId, user_id: userObjectId },
+        {
+          $set: {
+            status: 'failed',
+            stage: 'flashcard_generation_failed',
+            error: {
+              code: err.code || 'FLASHCARD_GENERATION_FAILED',
+              message: err.message
+            },
+            updated_at: new Date()
+          }
+        }
+      );
+    }
+    throw err;
+  }
+
+  // STEP 5: Validate and Persist Complete Step 6 Kit
+  const validatedStep6 = Step6KitSchema.parse({
+    company_brief: companyBrief,
+    role,
+    questions: generatedQuestions,
+    flashcards: generatedFlashcards
+  });
+
+  const now = new Date();
+  await db.collection('kits').updateOne(
+    { _id: kitObjectId, user_id: userObjectId },
+    {
+      $set: {
+        questions: validatedStep6.questions,
+        flashcards: validatedStep6.flashcards,
+        // Leave schedule and coverage untouched / empty as per Step 6 requirements
+        schedule: kit.schedule || null,
+        coverage: kit.coverage || null,
+        status: 'ready',
+        updated_at: now
+      }
+    }
+  );
+
+  // Mark job as completed
+  await updateJobProgress(
+    GENERATION_STAGES.GENERATION_COMPLETED,
+    STAGE_PROGRESS[GENERATION_STAGES.GENERATION_COMPLETED],
+    'completed'
+  );
+
+  const finalKit = await db.collection('kits').findOne({ _id: kitObjectId });
+  const finalJob = jobObjectId
+    ? await db.collection('generation_jobs').findOne({ _id: jobObjectId })
+    : null;
+
+  return {
+    kit: {
+      id: finalKit._id.toString(),
+      status: finalKit.status,
+      source: finalKit.source,
+      company_brief: finalKit.company_brief,
+      role: finalKit.role,
+      questions: finalKit.questions,
+      flashcards: finalKit.flashcards,
+      schedule: finalKit.schedule,
+      coverage: finalKit.coverage,
+      created_at: finalKit.created_at,
+      updated_at: finalKit.updated_at
+    },
+    job: finalJob
+      ? {
+          id: finalJob._id.toString(),
+          status: finalJob.status,
+          stage: finalJob.stage,
+          progress: finalJob.progress,
+          updated_at: finalJob.updated_at
+        }
+      : null
+  };
+}
+

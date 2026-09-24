@@ -74,8 +74,11 @@ export async function getKitsForUser(userId) {
     id: k._id.toString(),
     status: k.status,
     company_url: k.input?.company_url || k.source?.company_url || '',
+    role_title: k.role?.title || k.source?.role || '',
     days_available: k.input?.days_available || 1,
     jd_chars: k.source?.jd_chars || k.input?.jd?.length || 0,
+    questions_count: k.questions?.length || 0,
+    flashcards_count: k.flashcards?.length || 0,
     created_at: k.created_at
   }));
 }

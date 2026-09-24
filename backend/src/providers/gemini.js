@@ -103,10 +103,16 @@ export async function callGeminiApi({
   }
 
   if (response.status === 429) {
+    let detail = '';
+    try {
+      const errJson = await response.json();
+      detail = errJson.error?.message || '';
+    } catch {}
     throw new LlmError(
-      'Gemini API rate limit exceeded. Please retry after a brief delay.',
+      `Gemini API rate limit exceeded: ${detail || 'Please retry after a brief delay.'}`,
       LLM_ERROR_CODES.RATE_LIMITED,
-      429
+      429,
+      { detail }
     );
   }
 

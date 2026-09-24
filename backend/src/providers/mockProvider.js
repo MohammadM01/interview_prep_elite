@@ -44,8 +44,111 @@ export class MockLlmProvider {
     const lowerSystem = (system || '').toLowerCase();
     const lowerInput = (input || '').toLowerCase();
 
-    // 1. Requirement Extraction
-    if (lowerSystem.includes('requirement') || lowerInput.includes('requirement')) {
+    // 1. Flashcard Generation
+    if (
+      lowerSystem.includes('flashcard') ||
+      lowerSystem.includes('study architect') ||
+      lowerInput.includes('revision flashcards')
+    ) {
+      return JSON.stringify({
+        flashcards: [
+          {
+            front: 'What is the difference between microtasks and macrotasks in Node.js?',
+            back: 'Microtasks (Promises, process.nextTick) execute immediately after the current operation finishes and before the event loop advances to the next phase of macrotasks (timers, I/O, check).',
+            requirement_ids: ['r1']
+          },
+          {
+            front: 'What is the MongoDB ESR rule for index design?',
+            back: 'Equality first, Sort second, Range third. Place exact match filter fields first, sort keys in order, and range inequality filters last.',
+            requirement_ids: ['r2']
+          },
+          {
+            front: 'How do you structure a behavioral interview answer effectively?',
+            back: 'Use STAR: Situation (context), Task (your goal), Action (what you specifically did and why), Result (quantified impact and retrospective).',
+            requirement_ids: ['r3']
+          }
+        ]
+      });
+    }
+
+    // 2. Question Generation
+    if (
+      lowerSystem.includes('interview architect') ||
+      lowerSystem.includes('interview questions') ||
+      lowerInput.includes('generate targeted interview questions')
+    ) {
+      return JSON.stringify({
+        questions: [
+          {
+            requirement_ids: ['r1'],
+            category: 'technical',
+            prompt: 'Explain the Node.js event loop and how asynchronous I/O is scheduled.',
+            answer_outline: 'Describe libuv, macro/micro task queues, process.nextTick vs setImmediate, and backpressure management.',
+            difficulty: 2
+          },
+          {
+            requirement_ids: ['r2'],
+            category: 'technical',
+            prompt: 'How do you design and index MongoDB collections for high write throughput without degrading read latency?',
+            answer_outline: 'Explain compound indexes, ESR rule, write concerns, sharding strategies, and avoiding unbounded arrays.',
+            difficulty: 3
+          },
+          {
+            requirement_ids: ['r3'],
+            category: 'behavioral',
+            prompt: 'Describe a situation where you had a strong technical disagreement with a team member. How did you resolve it?',
+            answer_outline: 'STAR framework: Situation, Task, Action taking data-driven approach, Result demonstrating team alignment.',
+            difficulty: 2
+          }
+        ]
+      });
+    }
+
+    // 3. Company Brief
+    if (
+      lowerSystem.includes('company brief') ||
+      lowerSystem.includes('corporate intelligence') ||
+      lowerSystem.includes('summarize a target company') ||
+      lowerInput.includes('company brief') ||
+      lowerInput.includes('company target:')
+    ) {
+      // Find source URL from input if provided
+      const urlMatch = input.match(/https?:\/\/[^\s"',]+/);
+      const foundUrl = urlMatch ? urlMatch[0] : 'https://example.com/';
+
+      return JSON.stringify({
+        summary: 'A leading technology organization specializing in cloud services and developer tooling.',
+        what_they_do: 'Develops distributed infrastructure and scalable developer toolsets.',
+        sources: [foundUrl]
+      });
+    }
+
+    // 4. Role Analysis
+    if (
+      lowerSystem.includes('role analysis') ||
+      lowerSystem.includes('role analyst') ||
+      lowerSystem.includes('technical recruiter') ||
+      lowerInput.includes('role analysis')
+    ) {
+      return JSON.stringify({
+        title: 'Senior Software Engineer',
+        seniority: 'Senior',
+        responsibilities: [
+          'Design and maintain low-latency distributed APIs',
+          'Lead technical architectural design discussions',
+          'Mentor junior and mid-level engineering team members'
+        ]
+      });
+    }
+
+    // 5. Requirement Extraction
+    if (
+      lowerSystem.includes('hiring analyst') ||
+      lowerSystem.includes('extract explicit hiring requirements') ||
+      lowerInput.includes('untrusted job description') ||
+      lowerSystem.includes('requirement') ||
+      lowerInput.includes('requirement')
+    ) {
       return JSON.stringify({
         requirements: [
           {
@@ -72,43 +175,6 @@ export class MockLlmProvider {
             kind: 'education',
             priority: 'nice'
           }
-        ]
-      });
-    }
-
-    // 2. Company Brief
-    if (
-      lowerSystem.includes('company brief') ||
-      lowerSystem.includes('corporate intelligence') ||
-      lowerSystem.includes('summarize a target company') ||
-      lowerInput.includes('company brief') ||
-      lowerInput.includes('company target:')
-    ) {
-      // Find source URL from input if provided
-      const urlMatch = input.match(/https?:\/\/[^\s"',]+/);
-      const foundUrl = urlMatch ? urlMatch[0] : 'https://example.com/';
-
-      return JSON.stringify({
-        summary: 'A leading technology organization specializing in cloud services and developer tooling.',
-        what_they_do: 'Develops distributed infrastructure and scalable developer toolsets.',
-        sources: [foundUrl]
-      });
-    }
-
-    // 3. Role Analysis
-    if (
-      lowerSystem.includes('role analysis') ||
-      lowerSystem.includes('role analyst') ||
-      lowerSystem.includes('technical recruiter') ||
-      lowerInput.includes('role analysis')
-    ) {
-      return JSON.stringify({
-        title: 'Senior Software Engineer',
-        seniority: 'Senior',
-        responsibilities: [
-          'Design and maintain low-latency distributed APIs',
-          'Lead technical architectural design discussions',
-          'Mentor junior and mid-level engineering team members'
         ]
       });
     }

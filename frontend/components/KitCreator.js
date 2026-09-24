@@ -20,6 +20,50 @@ export default function KitCreator({ currentUser: propUser }) {
   const [researchState, setResearchState] = useState({});
 
   const [analysisState, setAnalysisState] = useState({});
+  const [generationState, setGenerationState] = useState({});
+
+  async function handleTriggerGeneration(kitId) {
+    setGenerationState((prev) => ({
+      ...prev,
+      [kitId]: { status: 'running', stage: 'question_generation', message: 'Generating questions & study flashcards...' }
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/api/kits/${kitId}/generate`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGenerationState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: 'failed',
+            message: `Generation failed: ${data.error?.message || 'Error occurred'}`
+          }
+        }));
+      } else {
+        const qCount = data.kit?.questions?.length || 0;
+        const fCount = data.kit?.flashcards?.length || 0;
+        setGenerationState((prev) => ({
+          ...prev,
+          [kitId]: {
+            status: 'complete',
+            stage: 'generation_completed',
+            message: `Ready: ${qCount} questions, ${fCount} flashcards`,
+            data: data.kit
+          }
+        }));
+        await loadKits();
+      }
+    } catch {
+      setGenerationState((prev) => ({
+        ...prev,
+        [kitId]: { status: 'failed', message: 'Generation failed: Network error' }
+      }));
+    }
+  }
 
   async function handleTriggerAnalysis(kitId) {
     setAnalysisState((prev) => ({
@@ -380,12 +424,22 @@ export default function KitCreator({ currentUser: propUser }) {
             {userKits.map((kit) => {
               const rState = researchState[kit.id];
               const aState = analysisState[kit.id];
+              const gState = generationState[kit.id];
               return (
                 <div key={kit.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                   <div>
-                    <p className="font-medium text-[#18181B]">{kit.company_url || 'Target Company'}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-[#18181B]">{kit.company_url || 'Target Company'}</p>
+                      {kit.role_title && (
+                        <span className="text-[11px] font-medium text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded">
+                          {kit.role_title}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[11px] text-[#71717A]">
                       {kit.days_available} days schedule · {kit.jd_chars} chars
+                      {kit.questions_count > 0 && ` · ${kit.questions_count} questions`}
+                      {kit.flashcards_count > 0 && ` · ${kit.flashcards_count} flashcards`}
                     </p>
                     {rState && (
                       <p className={`mt-1 text-[11px] font-medium ${
@@ -406,6 +460,15 @@ export default function KitCreator({ currentUser: propUser }) {
                         {aState.message}
                       </p>
                     )}
+                    {gState && (
+                      <p className={`mt-0.5 text-[11px] font-medium ${
+                        gState.status === 'running' ? 'text-blue-600' :
+                        gState.status === 'complete' ? 'text-emerald-700' :
+                        'text-rose-600'
+                      }`}>
+                        {gState.message}
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -418,9 +481,16 @@ export default function KitCreator({ currentUser: propUser }) {
                     <button
                       onClick={() => handleTriggerAnalysis(kit.id)}
                       disabled={aState?.status === 'running'}
+                      className="px-2.5 py-1 text-xs rounded border border-[#E4E4E7] bg-white hover:bg-zinc-50 text-[#18181B] disabled:opacity-50 transition-colors"
+                    >
+                      {aState?.status === 'running' ? 'Analyzing...' : '2. Analyze'}
+                    </button>
+                    <button
+                      onClick={() => handleTriggerGeneration(kit.id)}
+                      disabled={gState?.status === 'running'}
                       className="px-2.5 py-1 text-xs rounded border border-[#E4E4E7] bg-[#18181B] hover:bg-zinc-800 text-white disabled:opacity-50 transition-colors"
                     >
-                      {aState?.status === 'running' ? 'Analyzing...' : '2. Analyze Role'}
+                      {gState?.status === 'running' ? 'Generating...' : '3. Questions & Cards'}
                     </button>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                       {kit.status}

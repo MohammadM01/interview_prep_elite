@@ -5,6 +5,7 @@ await import('./auth.test.js');
 await import('./kits.test.js');
 await import('./research.test.js');
 await import('./generation.test.js');
+await import('./step6_generation.test.js');
 
 test('Teardown and Exit', async () => {
   await closeDatabaseConnection();

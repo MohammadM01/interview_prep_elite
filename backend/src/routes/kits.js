@@ -5,7 +5,8 @@ import {
   getKit,
   startKitResearch,
   getKitResearch,
-  startKitAnalysis
+  startKitAnalysis,
+  startKitGeneration
 } from '../controllers/kitController.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -19,5 +20,6 @@ router.get('/:id', getKit);
 router.post('/:id/research', startKitResearch);
 router.get('/:id/research', getKitResearch);
 router.post('/:id/analyze', startKitAnalysis);
+router.post('/:id/generate', startKitGeneration);
 
 export default router;

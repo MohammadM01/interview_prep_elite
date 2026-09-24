@@ -196,3 +196,26 @@ export async function startKitAnalysis(req, res) {
   }
 }
 
+export async function startKitGeneration(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitGeneration } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitGeneration({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit generation error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_FAILED',
+        message: error.message || 'An error occurred during question/flashcard generation'
+      }
+    });
+  }
+}
+

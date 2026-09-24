@@ -115,8 +115,21 @@ export async function generateStructured({
 
       // If we still have retries remaining and error is parse/transient, retry
       if (attempt < maxRetries) {
-        // Short exponential backoff before retry (100ms * attempt)
-        await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+        let backoffMs = (err.status === 429 || err.status === 503)
+          ? 2000 * attempt
+          : 100 * attempt;
+
+        // Honor provider rate limit reset delay if explicitly specified
+        const retryMatch = err.message?.match(/retry in\s*([\d.]+)s/i);
+        if (retryMatch) {
+          const parsedDelayMs = Math.ceil(parseFloat(retryMatch[1]) * 1000);
+          // Cap at 60s to avoid indefinite hanging
+          if (parsedDelayMs > 0 && parsedDelayMs <= 60000) {
+            backoffMs = parsedDelayMs + 1000;
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
         continue;
       }
     }

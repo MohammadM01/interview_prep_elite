@@ -49,3 +49,63 @@ export const Step5KitAnalysisSchema = z.object({
   company_brief: CompanyBriefOutputSchema,
   role: RoleOutputSchema
 });
+
+export const QuestionCategoryEnum = z.enum([
+  'technical',
+  'behavioral',
+  'role_specific',
+  'domain',
+  'company',
+  'experience'
+]);
+
+export const QuestionDifficultyEnum = z.number().int().min(1).max(3);
+
+export const RawQuestionItemSchema = z.object({
+  requirement_ids: z.array(z.string().min(1)).min(1, 'At least one requirement_id must be associated'),
+  category: QuestionCategoryEnum,
+  prompt: z.string().min(5, 'Question prompt must be at least 5 characters'),
+  answer_outline: z.string().min(5, 'Answer outline must be at least 5 characters'),
+  difficulty: QuestionDifficultyEnum,
+  follow_ups: z.array(z.string()).optional(),
+  evaluation_criteria: z.array(z.string()).optional()
+});
+
+export const QuestionGenerationOutputSchema = z.object({
+  questions: z.array(RawQuestionItemSchema).min(1, 'At least one interview question must be generated')
+});
+
+export const QuestionItemSchema = z.object({
+  id: z.string().regex(/^q\d+$/, 'Question ID must be in format q1, q2, ...'),
+  requirement_ids: z.array(z.string().min(1)).min(1),
+  category: QuestionCategoryEnum,
+  prompt: z.string().min(1),
+  answer_outline: z.string().min(1),
+  difficulty: QuestionDifficultyEnum,
+  follow_ups: z.array(z.string()).optional(),
+  evaluation_criteria: z.array(z.string()).optional()
+});
+
+export const RawFlashcardItemSchema = z.object({
+  front: z.string().min(3, 'Flashcard front must be at least 3 characters'),
+  back: z.string().min(3, 'Flashcard back must be at least 3 characters'),
+  requirement_ids: z.array(z.string().min(1)).min(1, 'At least one requirement_id must be associated')
+});
+
+export const FlashcardGenerationOutputSchema = z.object({
+  flashcards: z.array(RawFlashcardItemSchema).min(1, 'At least one study flashcard must be generated')
+});
+
+export const FlashcardItemSchema = z.object({
+  id: z.string().regex(/^f\d+$/, 'Flashcard ID must be in format f1, f2, ...'),
+  front: z.string().min(1),
+  back: z.string().min(1),
+  requirement_ids: z.array(z.string().min(1)).min(1)
+});
+
+export const Step6KitSchema = z.object({
+  company_brief: CompanyBriefOutputSchema,
+  role: RoleOutputSchema,
+  questions: z.array(QuestionItemSchema),
+  flashcards: z.array(FlashcardItemSchema)
+});
