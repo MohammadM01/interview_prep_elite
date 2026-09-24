@@ -29,7 +29,7 @@ CRITICAL INSTRUCTIONS:
  * @returns {Promise<{ title: string, seniority: string, responsibilities: string[], requirements: Array }>}
  */
 export async function analyzeRole(jdText, normalizedRequirements = [], options = {}) {
-  const { provider, timeoutMs } = options;
+  const { provider, timeoutMs, model = process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite' } = options;
 
   const rawJd = (jdText || '').trim();
 
@@ -44,6 +44,7 @@ export async function analyzeRole(jdText, normalizedRequirements = [], options =
       system: SYSTEM_PROMPT,
       input: `[UNTRUSTED JOB DESCRIPTION START]\n${rawJd}\n[UNTRUSTED JOB DESCRIPTION END]`,
       schema: RoleAnalysisLlmOutputSchema,
+      model,
       provider,
       timeoutMs
     });

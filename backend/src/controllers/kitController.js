@@ -74,7 +74,7 @@ export async function getKit(req, res) {
       });
     }
 
-    return res.status(200).json({ kit });
+    return res.status(200).json({ kit, job: kit.job || null });
   } catch (error) {
     console.error('Get kit error:', error);
     return res.status(500).json({
@@ -210,7 +210,7 @@ export async function startKitGeneration(req, res) {
     return res.status(200).json(result);
   } catch (error) {
     console.error('Kit generation error:', error);
-    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : 500);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
     return res.status(status).json({
       error: {
         code: error.code || 'GENERATION_FAILED',

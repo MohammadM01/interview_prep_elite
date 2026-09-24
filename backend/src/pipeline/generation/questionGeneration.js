@@ -188,7 +188,13 @@ export async function generateQuestions({
   startCounter = 1,
   options = {}
 }) {
-  const { provider, timeoutMs, maxRetries = 3 } = options;
+  const {
+    provider,
+    timeoutMs,
+    maxRetries = 3,
+    model = process.env.DRAFT_MODEL || 'gemini-3.6-flash',
+    fallbackModel = process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite'
+  } = options;
 
   const allRequirements = Array.isArray(role?.requirements) ? role.requirements : [];
   if (allRequirements.length === 0) {
@@ -245,6 +251,8 @@ Generate targeted interview questions that evaluate the candidate on the above r
     system: SYSTEM_PROMPT,
     input: userPrompt,
     schema: QuestionGenerationOutputSchema,
+    model,
+    fallbackModel,
     provider,
     timeoutMs,
     maxRetries

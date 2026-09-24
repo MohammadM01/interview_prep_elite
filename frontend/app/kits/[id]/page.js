@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import TopContextBar from '@/components/TopContextBar';
 import AuthScreen from '@/components/AuthScreen';
+import PipelineTracker from '@/components/PipelineTracker';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -48,6 +49,11 @@ export default function KitWorkspacePage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  // Active job & retry state
+  const [activeJob, setActiveJob] = useState(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState(null);
+
   // Snapshot of clean data to detect unsaved changes
   const [cleanSnapshot, setCleanSnapshot] = useState('');
 
@@ -71,6 +77,9 @@ export default function KitWorkspacePage() {
       const data = await res.json();
       const currentKit = data.kit;
       setKit(currentKit);
+      if (data.job || currentKit.job) {
+        setActiveJob(data.job || currentKit.job);
+      }
 
       const reqs = currentKit.role?.requirements || [];
       const qs = currentKit.questions || [];
@@ -94,6 +103,91 @@ export default function KitWorkspacePage() {
     if (!user) return;
     fetchKit();
   }, [user, authLoading, fetchKit]);
+
+  // Poll generation job during retry or when job is actively running
+  useEffect(() => {
+    if (!isRetrying && activeJob?.status !== 'running') return;
+    const jobId = activeJob?._id || activeJob?.id || kit?.job?.id || kit?.job?._id;
+    if (!jobId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/generation-jobs/${jobId}`, {
+          credentials: 'include'
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const job = data.job;
+          setActiveJob(job);
+
+          if (job?.status === 'completed') {
+            setIsRetrying(false);
+            fetchKit();
+          } else if (job?.status === 'failed') {
+            setIsRetrying(false);
+            setRetryError(job.error?.message || 'Generation pipeline failed');
+          }
+        }
+      } catch {
+        // Polling network error
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isRetrying, activeJob?.status, activeJob?.id, activeJob?._id, kit?.job, fetchKit]);
+
+  // Retry Generation Handler
+  async function handleRetryGeneration() {
+    if (isRetrying) return;
+    setIsRetrying(true);
+    setRetryError(null);
+
+    try {
+      // Optimistically show running tracker
+      setActiveJob((prev) => ({
+        ...(prev || kit?.job || {}),
+        status: 'running',
+        stage: 'research',
+        progress: 10
+      }));
+
+      const res = await fetch(`${API_BASE}/api/kits/${kitId}/generate`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 409) {
+          if (data.job) setActiveJob(data.job);
+          return;
+        }
+        throw new Error(data.error?.message || 'Failed to start generation');
+      }
+
+      if (data.job) {
+        setActiveJob(data.job);
+      }
+
+      if (data.kit) {
+        setKit(data.kit);
+        const reqs = data.kit.role?.requirements || [];
+        const qs = data.kit.questions || [];
+        const fs = data.kit.flashcards || [];
+        setRequirements(reqs);
+        setQuestions(qs);
+        setFlashcards(fs);
+        setCleanSnapshot(JSON.stringify({ reqs, qs, fs }));
+      }
+
+      setIsRetrying(false);
+      await fetchKit();
+    } catch (err) {
+      setRetryError(err.message || 'Unable to retry kit generation');
+      setIsRetrying(false);
+    }
+  }
 
   // Unsaved changes detector
   const currentSnapshot = useMemo(() => {
@@ -331,20 +425,92 @@ export default function KitWorkspacePage() {
   const coveredShould = shouldReqs.filter((r) => coveredSet.has(r.id)).length;
   const coveredNice = niceReqs.filter((r) => coveredSet.has(r.id)).length;
 
+  const isIncomplete = useMemo(() => {
+    if (!kit) return false;
+    const hasReqs = Array.isArray(kit.role?.requirements) && kit.role.requirements.length > 0;
+    const hasQuestions = Array.isArray(kit.questions) && kit.questions.length > 0;
+    const hasFlashcards = Array.isArray(kit.flashcards) && kit.flashcards.length > 0;
+    const hasCoverage = Boolean(kit.coverage);
+    const hasSchedule = Boolean(kit.schedule?.days?.length);
+    const isJobFailed = kit.job?.status === 'failed' || activeJob?.status === 'failed';
+
+    return !hasReqs || !hasQuestions || !hasFlashcards || !hasCoverage || !hasSchedule || isJobFailed || kit.status === 'failed' || kit.status === 'queued';
+  }, [kit, activeJob]);
+
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-main)] flex flex-col justify-between">
       {/* MINIMAL TOP CONTEXT BAR (NO SIDEBAR) */}
-      <TopContextBar
-        activeStep={activeTab === 'overview' ? '03' : activeTab === 'builder' ? '04' : '06'}
-        stepLabel={activeTab === 'overview' ? 'Review' : activeTab === 'builder' ? 'Build' : 'Prepare'}
-        totalSteps="06"
-      />
+      <TopContextBar />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-8 md:py-12">
         {/* ============================================================ */}
-        {/* COMPACT CONTEXT HEADER (REPLACES SIDEBAR) */}
+        {/* INCOMPLETE / FAILED GENERATION OR RETRY IN PROGRESS VIEW */}
         {/* ============================================================ */}
-        <div className="pb-6 border-b border-[var(--border-light)] flex flex-col md:flex-row md:items-end justify-between gap-6">
+        {isIncomplete ? (
+          isRetrying || activeJob?.status === 'running' ? (
+            <div className="max-w-2xl mx-auto py-8 space-y-8">
+              <div>
+                <div className="text-[11px] font-mono-num uppercase tracking-wider text-[var(--accent-primary)] font-semibold mb-1">
+                  GENERATION IN PROGRESS
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--text-main)]">
+                  Building your interview preparation.
+                </h1>
+                <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                  Researching the role and constructing your targeted interview system.
+                </p>
+              </div>
+
+              <PipelineTracker
+                currentStage={activeJob?.stage || 'queued'}
+                error={activeJob?.status === 'failed' ? (activeJob.error?.message || retryError) : retryError}
+                onRetry={handleRetryGeneration}
+              />
+            </div>
+          ) : (
+            <div className="max-w-xl mx-auto py-12 space-y-6 text-center">
+              <div className="space-y-2">
+                <div className="text-[11px] font-mono-num uppercase tracking-wider text-[var(--accent-rose)] font-semibold">
+                  GENERATION INCOMPLETE
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--text-main)]">
+                  Generation failed or incomplete
+                </h1>
+                <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
+                  Your preparation kit was not fully generated.
+                </p>
+              </div>
+
+              {(retryError || activeJob?.error?.message || kit.job?.error?.message) && (
+                <div className="p-3 text-xs font-mono-num text-[var(--accent-rose)] border border-[var(--accent-rose)]/40 bg-rose-500/10 rounded-[6px] max-w-md mx-auto">
+                  {retryError || activeJob?.error?.message || kit.job?.error?.message}
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button
+                  onClick={handleRetryGeneration}
+                  disabled={isRetrying}
+                  className="w-full sm:w-auto px-8 py-3 text-xs font-mono-num font-semibold uppercase tracking-wider bg-[var(--text-main)] text-[var(--bg-surface)] hover:bg-[var(--accent-primary)] disabled:opacity-50 rounded-[6px] transition-smooth cursor-pointer"
+                >
+                  {isRetrying ? 'Starting generation...' : 'Retry generation →'}
+                </button>
+                <Link
+                  href="/"
+                  className="text-xs font-mono-num uppercase tracking-wider text-[var(--text-muted)] hover:text-[var(--text-main)] underline"
+                >
+                  ← Back to workspace
+                </Link>
+              </div>
+            </div>
+          )
+        ) : (
+          <>
+            {/* ============================================================ */}
+            {/* COMPACT CONTEXT HEADER (REPLACES SIDEBAR) */}
+            {/* ============================================================ */}
+            <div className="pb-6 border-b border-[var(--border-light)] flex flex-col md:flex-row md:items-end justify-between gap-6">
+
           <div className="space-y-1">
             <div className="flex items-center gap-2.5 text-xs font-mono-num text-[var(--text-muted)]">
               <span className="uppercase tracking-wider font-semibold text-[var(--accent-primary)]">
@@ -863,7 +1029,9 @@ export default function KitWorkspacePage() {
             </div>
           </div>
         )}
-      </main>
+      </>
+    )}
+  </main>
 
       <footer className="border-t border-[var(--border-light)] py-4 px-4 sm:px-8 text-center text-xs font-mono-num text-[var(--text-muted)]">
         INTERVIEW PREPARATION ELITE · GUIDED WORKSPACE

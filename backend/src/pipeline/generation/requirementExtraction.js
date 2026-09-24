@@ -82,7 +82,7 @@ export function normalizeRequirementIds(requirements) {
  * @returns {Promise<Array<{ id: string, text: string, kind: string, priority: string }>>}
  */
 export async function extractRequirementsFromJd(jdText, options = {}) {
-  const { provider, timeoutMs } = options;
+  const { provider, timeoutMs, model = process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite' } = options;
 
   const rawJd = (jdText || '').trim();
   if (!rawJd) {
@@ -93,6 +93,7 @@ export async function extractRequirementsFromJd(jdText, options = {}) {
     system: SYSTEM_PROMPT,
     input: `[UNTRUSTED JOB DESCRIPTION START]\n${rawJd}\n[UNTRUSTED JOB DESCRIPTION END]`,
     schema: RequirementExtractionOutputSchema,
+    model,
     provider,
     timeoutMs
   });

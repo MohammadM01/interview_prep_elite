@@ -11,6 +11,8 @@ import { calculateCoverage } from '../coverage/index.js';
 import { generateSchedule } from '../schedule/index.js';
 import { mergeGeneratedContent } from './mergeContent.js';
 
+const activeGenerations = new Set();
+
 export { extractRequirementsFromJd, normalizeRequirementIds } from './requirementExtraction.js';
 export { generateCompanyBrief, validateAndFilterSources } from './companyBrief.js';
 export { analyzeRole } from './roleAnalysis.js';
@@ -64,7 +66,7 @@ export async function executeKitAnalysis({ kitId, jobId, userId, options = {} })
     const foundJob = await db.collection('generation_jobs').findOne({
       kit_id: kitObjectId,
       user_id: userObjectId
-    });
+    }, { sort: { created_at: -1 } });
     if (foundJob) {
       jobObjectId = foundJob._id;
     }
@@ -87,11 +89,21 @@ export async function executeKitAnalysis({ kitId, jobId, userId, options = {} })
   };
 
   try {
-    // STEP B: Load research_result
-    const researchResult = await db.collection('research_results').findOne({
+    // STEP B: Load research_result, running research if not done yet
+    let researchResult = await db.collection('research_results').findOne({
       kit_id: kitObjectId,
       user_id: userObjectId
     });
+
+    if (!researchResult) {
+      try {
+        const { researchCompany } = await import('../../services/researchService.js');
+        const res = await researchCompany({ kitId: kitObjectId, jobId: jobObjectId, userId: userObjectId, options });
+        researchResult = res;
+      } catch (researchErr) {
+        console.warn('Auto-research fallback notice:', researchErr.message);
+      }
+    }
 
     const researchPages = researchResult?.pages || [];
     const targetCompanyUrl = kit.input?.company_url || kit.source?.company_url || '';
@@ -241,18 +253,98 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
     throw error;
   }
 
-  // Find linked job
-  let jobObjectId = null;
-  if (jobId) {
-    jobObjectId = typeof jobId === 'string' ? new ObjectId(jobId) : jobId;
-  } else {
-    const foundJob = await db.collection('generation_jobs').findOne({
-      kit_id: kitObjectId,
-      user_id: userObjectId
-    });
-    if (foundJob) {
-      jobObjectId = foundJob._id;
+  // Prevent duplicate concurrent generation requests
+  const genKey = kitObjectId.toString();
+  if (activeGenerations.has(genKey)) {
+    const error = new Error('Generation is already in progress for this kit');
+    error.code = 'GENERATION_IN_PROGRESS';
+    error.status = 409;
+    throw error;
+  }
+  activeGenerations.add(genKey);
+
+  try {
+    // Find linked job
+    let jobObjectId = null;
+    if (jobId) {
+      jobObjectId = typeof jobId === 'string' ? new ObjectId(jobId) : jobId;
+    } else {
+      const foundJob = await db.collection('generation_jobs').findOne(
+        { kit_id: kitObjectId, user_id: userObjectId },
+        { sort: { created_at: -1 } }
+      );
+      if (foundJob) {
+        jobObjectId = foundJob._id;
+      }
     }
+
+  // If kit is already completely generated, return existing without overwriting (unless forced)
+  const isComplete = kit.status === 'ready' &&
+    kit.role?.requirements?.length > 0 &&
+    kit.questions?.length > 0 &&
+    kit.flashcards?.length > 0 &&
+    kit.coverage &&
+    kit.schedule?.days?.length > 0;
+
+  if (isComplete && !options.force && !options.step6Only) {
+    const existingJob = jobObjectId
+      ? await db.collection('generation_jobs').findOne({ _id: jobObjectId })
+      : await db.collection('generation_jobs').findOne(
+          { kit_id: kitObjectId, user_id: userObjectId },
+          { sort: { created_at: -1 } }
+        );
+
+    return {
+      kit: {
+        id: kit._id.toString(),
+        status: kit.status,
+        source: kit.source,
+        company_brief: kit.company_brief,
+        role: kit.role,
+        questions: kit.questions,
+        flashcards: kit.flashcards,
+        schedule: kit.schedule,
+        coverage: kit.coverage,
+        created_at: kit.created_at,
+        updated_at: kit.updated_at
+      },
+      job: existingJob ? {
+        id: existingJob._id.toString(),
+        status: existingJob.status,
+        stage: existingJob.stage,
+        progress: existingJob.progress,
+        updated_at: existingJob.updated_at
+      } : null,
+      message: 'Kit already fully generated'
+    };
+  }
+
+  // Ensure active generation job document exists and is reset to running
+  if (!jobObjectId) {
+    const newJob = await db.collection('generation_jobs').insertOne({
+      user_id: userObjectId,
+      kit_id: kitObjectId,
+      status: 'running',
+      stage: 'queued',
+      progress: 5,
+      error: null,
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+    jobObjectId = newJob.insertedId;
+  } else {
+    await db.collection('generation_jobs').updateOne(
+      { _id: jobObjectId, user_id: userObjectId },
+      {
+        $set: {
+          status: 'running',
+          stage: 'queued',
+          progress: 5,
+          error: null,
+          updated_at: new Date()
+        }
+      }
+    );
   }
 
   const updateJobProgress = async (stage, progress, extraStatus = 'running') => {
@@ -271,14 +363,16 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
   };
 
   // STEP 2: Ensure Step 5 analysis is complete
-  if (!kit.role || !kit.role.requirements || kit.role.requirements.length === 0 || !kit.company_brief) {
-    const analysisRes = await executeKitAnalysis({ kitId, jobId, userId, options });
-    kit = await db.collection('kits').findOne({ _id: kitObjectId });
-  }
+    if (!kit.role || !kit.role.requirements || kit.role.requirements.length === 0 || !kit.company_brief) {
+      const analysisRes = await executeKitAnalysis({ kitId, jobId: jobObjectId, userId, options });
+      kit = await db.collection('kits').findOne({ _id: kitObjectId });
+    }
 
   const role = kit.role;
   const companyBrief = kit.company_brief;
   const jdText = kit.input?.jd || '';
+  const draftModel = options.draftModel || process.env.DRAFT_MODEL || 'gemini-3.6-flash';
+  const fallbackModel = options.fallbackModel || process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite';
 
   let generatedQuestions = kit.questions || [];
 
@@ -293,7 +387,12 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
       role,
       companyBrief,
       jdText,
-      options: { provider, timeoutMs }
+      options: {
+        provider,
+        timeoutMs,
+        model: draftModel,
+        fallbackModel
+      }
     });
 
     if (kit.questions && kit.questions.some((q) => q.state === 'pinned' || q.state === 'edited')) {
@@ -347,7 +446,12 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
       questions: generatedQuestions,
       companyBrief,
       role,
-      options: { provider, timeoutMs }
+      options: {
+        provider,
+        timeoutMs,
+        model: draftModel,
+        fallbackModel
+      }
     });
 
     if (kit.flashcards && kit.flashcards.some((f) => f.state === 'pinned' || f.state === 'edited')) {
@@ -463,7 +567,12 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
         jdText,
         targetRequirements: targetUncovered,
         startCounter: generatedQuestions.length + 1,
-        options: { provider, timeoutMs }
+        options: {
+          provider,
+          timeoutMs,
+          model: draftModel,
+          fallbackModel
+        }
       });
 
       if (Array.isArray(secondPassQuestions) && secondPassQuestions.length > 0) {
@@ -578,5 +687,8 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
         }
       : null
   };
+} finally {
+  activeGenerations.delete(genKey);
+}
 }
 

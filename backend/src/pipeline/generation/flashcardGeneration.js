@@ -136,7 +136,13 @@ export async function generateFlashcards({
   role = {},
   options = {}
 }) {
-  const { provider, timeoutMs, maxRetries = 3 } = options;
+  const {
+    provider,
+    timeoutMs,
+    maxRetries = 3,
+    model = process.env.DRAFT_MODEL || 'gemini-3.6-flash',
+    fallbackModel = process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite'
+  } = options;
 
   if (!Array.isArray(requirements) || requirements.length === 0) {
     throw new LlmError(
@@ -178,6 +184,8 @@ Generate high-yield revision flashcards for the candidate. Link each flashcard t
     system: SYSTEM_PROMPT,
     input: userPrompt,
     schema: FlashcardGenerationOutputSchema,
+    model,
+    fallbackModel,
     provider,
     timeoutMs,
     maxRetries

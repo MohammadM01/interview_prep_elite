@@ -49,7 +49,12 @@ export function validateAndFilterSources(sources, validUrls) {
  * @returns {Promise<{ summary: string, what_they_do: string, sources: string[] }>}
  */
 export async function generateCompanyBrief(pages, options = {}) {
-  const { companyUrl = '', provider, timeoutMs } = options;
+  const {
+    companyUrl = '',
+    provider,
+    timeoutMs,
+    model = process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite'
+  } = options;
 
   const validUrls = (Array.isArray(pages) ? pages : [])
     .map((p) => p?.url)
@@ -78,6 +83,7 @@ export async function generateCompanyBrief(pages, options = {}) {
     system: SYSTEM_PROMPT,
     input: userInput,
     schema: CompanyBriefOutputSchema,
+    model,
     provider,
     timeoutMs
   });

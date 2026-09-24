@@ -19,5 +19,7 @@ export const config = {
   cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : process.env.NODE_ENV === 'production',
   cookieSameSite: process.env.COOKIE_SAME_SITE || 'lax',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
-  geminiModel: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
+  screenModel: process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite',
+  draftModel: process.env.DRAFT_MODEL || 'gemini-3.6-flash',
+  geminiModel: process.env.GEMINI_MODEL || process.env.DRAFT_MODEL || 'gemini-3.6-flash'
 };

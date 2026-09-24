@@ -100,6 +100,11 @@ export async function getKitById(kitId, userId) {
 
     if (!kit) return null;
 
+    const job = await db.collection('generation_jobs').findOne(
+      { kit_id: kitObjectId, user_id: userObjectId },
+      { sort: { created_at: -1 } }
+    );
+
     return {
       id: kit._id.toString(),
       user_id: kit.user_id.toString(),
@@ -112,6 +117,14 @@ export async function getKitById(kitId, userId) {
       schedule: kit.schedule || null,
       coverage: kit.coverage || null,
       input: kit.input,
+      job: job ? {
+        id: job._id.toString(),
+        status: job.status,
+        stage: job.stage,
+        progress: job.progress,
+        error: job.error || null,
+        updated_at: job.updated_at
+      } : null,
       created_at: kit.created_at,
       updated_at: kit.updated_at
     };
