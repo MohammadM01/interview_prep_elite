@@ -1,5 +1,7 @@
 import { ObjectId } from 'mongodb';
 import { getDatabase } from '../config/database.js';
+import { KitUpdateInputSchema } from '../pipeline/generation/schemas.js';
+import { calculateCoverage } from '../pipeline/coverage/index.js';
 
 export async function createKitAndJob({ userId, jd, companyUrl, daysAvailable }) {
   const db = getDatabase();
@@ -145,3 +147,170 @@ export async function getJobById(jobId, userId) {
     return null;
   }
 }
+
+/**
+ * Updates editable parts of an interview kit (requirements, questions, flashcards).
+ * Validates unique IDs, requirement references, and preserves schedule integrity.
+ *
+ * @param {string|ObjectId} kitId
+ * @param {string|ObjectId} userId
+ * @param {Object} updateData
+ * @returns {Promise<Object>}
+ */
+export async function updateKit(kitId, userId, updateData) {
+  const db = getDatabase();
+  let kitObjectId;
+  let userObjectId;
+  try {
+    kitObjectId = typeof kitId === 'string' ? new ObjectId(kitId) : kitId;
+    userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+  } catch {
+    const err = new Error('Interview kit not found');
+    err.status = 404;
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  // 1. Verify kit existence & ownership
+  const kit = await db.collection('kits').findOne({
+    _id: kitObjectId,
+    user_id: userObjectId
+  });
+
+  if (!kit) {
+    const err = new Error('Interview kit not found or unauthorized');
+    err.status = 404;
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  // 2. Validate updateData against KitUpdateInputSchema
+  const validation = KitUpdateInputSchema.safeParse(updateData);
+  if (!validation.success) {
+    const message = validation.error.issues
+      .map((i) => `${i.path.join('.') || 'root'}: ${i.message}`)
+      .join('; ');
+    const err = new Error(`Validation failed: ${message}`);
+    err.status = 400;
+    err.code = 'VALIDATION_ERROR';
+    err.issues = validation.error.issues;
+    throw err;
+  }
+
+  const { role: newRole, questions: newQuestions, flashcards: newFlashcards } = validation.data;
+
+  // 3. Determine finalRole
+  const finalRole = {
+    ...kit.role,
+    ...(newRole || {})
+  };
+
+  // Validate unique requirement IDs
+  const reqMap = new Map();
+  if (Array.isArray(finalRole.requirements)) {
+    for (const r of finalRole.requirements) {
+      if (reqMap.has(r.id)) {
+        const err = new Error(`Duplicate requirement ID "${r.id}" is not allowed`);
+        err.status = 400;
+        err.code = 'VALIDATION_ERROR';
+        throw err;
+      }
+      reqMap.set(r.id, r);
+    }
+  }
+
+  // 4. Determine finalQuestions
+  let finalQuestions = Array.isArray(newQuestions) ? newQuestions : (kit.questions || []);
+
+  // Validate unique question IDs
+  const qIdSet = new Set();
+  for (const q of finalQuestions) {
+    if (qIdSet.has(q.id)) {
+      const err = new Error(`Duplicate question ID "${q.id}" is not allowed`);
+      err.status = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    qIdSet.add(q.id);
+
+    // Validate that every requirement_id exists in finalRole.requirements
+    if (Array.isArray(q.requirement_ids)) {
+      for (const rId of q.requirement_ids) {
+        if (!reqMap.has(rId)) {
+          const err = new Error(`Question "${q.id}" references non-existent requirement ID "${rId}"`);
+          err.status = 400;
+          err.code = 'VALIDATION_ERROR';
+          throw err;
+        }
+      }
+    }
+  }
+
+  // 5. Determine finalFlashcards
+  let finalFlashcards = Array.isArray(newFlashcards) ? newFlashcards : (kit.flashcards || []);
+
+  // Validate unique flashcard IDs
+  const fIdSet = new Set();
+  for (const f of finalFlashcards) {
+    if (fIdSet.has(f.id)) {
+      const err = new Error(`Duplicate flashcard ID "${f.id}" is not allowed`);
+      err.status = 400;
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    fIdSet.add(f.id);
+
+    // Validate that every requirement_id exists in finalRole.requirements
+    if (Array.isArray(f.requirement_ids)) {
+      for (const rId of f.requirement_ids) {
+        if (!reqMap.has(rId)) {
+          const err = new Error(`Flashcard "${f.id}" references non-existent requirement ID "${rId}"`);
+          err.status = 400;
+          err.code = 'VALIDATION_ERROR';
+          throw err;
+        }
+      }
+    }
+  }
+
+  // 6. Preserve schedule integrity (strip deleted question IDs from schedule days)
+  let updatedSchedule = kit.schedule;
+  if (kit.schedule && Array.isArray(kit.schedule.days)) {
+    updatedSchedule = {
+      ...kit.schedule,
+      days: kit.schedule.days.map((day) => ({
+        ...day,
+        question_ids: (day.question_ids || []).filter((qId) => qIdSet.has(qId))
+      }))
+    };
+  }
+
+  // 7. Recalculate coverage if coverage exists
+  let updatedCoverage = kit.coverage;
+  if (kit.coverage && Array.isArray(finalRole.requirements)) {
+    const covResult = calculateCoverage(finalRole.requirements, finalQuestions, kit.coverage.passes || 1);
+    updatedCoverage = {
+      uncovered_requirement_ids: covResult.uncovered_requirement_ids,
+      passes: kit.coverage.passes || 1
+    };
+  }
+
+  // 8. Persist to MongoDB
+  const now = new Date();
+  await db.collection('kits').updateOne(
+    { _id: kitObjectId, user_id: userObjectId },
+    {
+      $set: {
+        role: finalRole,
+        questions: finalQuestions,
+        flashcards: finalFlashcards,
+        schedule: updatedSchedule,
+        coverage: updatedCoverage,
+        updated_at: now
+      }
+    }
+  );
+
+  return getKitById(kitId, userId);
+}
+

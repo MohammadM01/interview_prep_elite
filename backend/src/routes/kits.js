@@ -6,7 +6,8 @@ import {
   startKitResearch,
   getKitResearch,
   startKitAnalysis,
-  startKitGeneration
+  startKitGeneration,
+  updateKitHandler
 } from '../controllers/kitController.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -17,6 +18,7 @@ router.use(requireAuth);
 router.post('/', createKit);
 router.get('/', listKits);
 router.get('/:id', getKit);
+router.patch('/:id', updateKitHandler);
 router.post('/:id/research', startKitResearch);
 router.get('/:id/research', getKitResearch);
 router.post('/:id/analyze', startKitAnalysis);

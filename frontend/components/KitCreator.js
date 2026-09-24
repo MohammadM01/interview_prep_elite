@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -17,6 +18,7 @@ export default function KitCreator({ currentUser: propUser }) {
   const [userKits, setUserKits] = useState([]);
   const [loadingKits, setLoadingKits] = useState(false);
   const [jobStatus, setJobStatus] = useState(null);
+  const [checkingJob, setCheckingJob] = useState(false);
   const [researchState, setResearchState] = useState({});
 
   const [analysisState, setAnalysisState] = useState({});
@@ -524,6 +526,12 @@ export default function KitCreator({ currentUser: propUser }) {
                     >
                       {gState?.status === 'running' ? 'Generating...' : '3. Generate Kit'}
                     </button>
+                    <Link
+                      href={`/kits/${kit.id}`}
+                      className="px-2.5 py-1 text-xs rounded border border-zinc-300 bg-white hover:bg-zinc-50 text-[#18181B] font-medium transition-colors"
+                    >
+                      Builder Mode →
+                    </Link>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                       {kit.status}
                     </span>

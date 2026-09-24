@@ -4,7 +4,8 @@ import {
   createKitAndJob,
   getKitsForUser,
   getKitById,
-  getJobById
+  getJobById,
+  updateKit
 } from '../services/kitService.js';
 
 export async function createKit(req, res) {
@@ -214,6 +215,41 @@ export async function startKitGeneration(req, res) {
       error: {
         code: error.code || 'GENERATION_FAILED',
         message: error.message || 'An error occurred during question/flashcard generation'
+      }
+    });
+  }
+}
+
+export async function updateKitHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const updatedKit = await updateKit(id, req.user.id, req.body);
+    return res.status(200).json({ kit: updatedKit });
+  } catch (error) {
+    if (error.status === 404 || error.code === 'NOT_FOUND') {
+      return res.status(404).json({
+        error: {
+          code: 'NOT_FOUND',
+          message: error.message || 'Interview kit not found'
+        }
+      });
+    }
+
+    if (error.status === 400 || error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.message,
+          issues: error.issues
+        }
+      });
+    }
+
+    console.error('Update kit error:', error);
+    return res.status(500).json({
+      error: {
+        code: 'KIT_UPDATE_FAILED',
+        message: 'An error occurred while updating the interview kit'
       }
     });
   }

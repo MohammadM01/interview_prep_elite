@@ -6,6 +6,7 @@ export const RequirementKindEnum = z.enum([
   'domain',
   'education',
   'experience',
+  'system_design',
   'other'
 ]);
 
@@ -56,7 +57,9 @@ export const QuestionCategoryEnum = z.enum([
   'role_specific',
   'domain',
   'company',
-  'experience'
+  'experience',
+  'system_design',
+  'coding'
 ]);
 
 export const QuestionDifficultyEnum = z.number().int().min(1).max(3);
@@ -75,13 +78,16 @@ export const QuestionGenerationOutputSchema = z.object({
   questions: z.array(RawQuestionItemSchema).min(1, 'At least one interview question must be generated')
 });
 
+export const ContentStateEnum = z.enum(['generated', 'edited', 'pinned']);
+
 export const QuestionItemSchema = z.object({
-  id: z.string().regex(/^q\d+$/, 'Question ID must be in format q1, q2, ...'),
+  id: z.string().regex(/^q[a-zA-Z0-9_-]+$/, 'Question ID must start with q (e.g. q1, q_manual_001)'),
   requirement_ids: z.array(z.string().min(1)).min(1),
   category: QuestionCategoryEnum,
   prompt: z.string().min(1),
   answer_outline: z.string().min(1),
   difficulty: QuestionDifficultyEnum,
+  state: ContentStateEnum.optional().default('generated'),
   follow_ups: z.array(z.string()).optional(),
   evaluation_criteria: z.array(z.string()).optional()
 });
@@ -97,10 +103,11 @@ export const FlashcardGenerationOutputSchema = z.object({
 });
 
 export const FlashcardItemSchema = z.object({
-  id: z.string().regex(/^f\d+$/, 'Flashcard ID must be in format f1, f2, ...'),
+  id: z.string().regex(/^f[a-zA-Z0-9_-]+$/, 'Flashcard ID must start with f (e.g. f1, f_manual_001)'),
   front: z.string().min(1),
   back: z.string().min(1),
-  requirement_ids: z.array(z.string().min(1)).min(1)
+  requirement_ids: z.array(z.string().min(1)).min(1),
+  state: ContentStateEnum.optional().default('generated')
 });
 
 export const Step6KitSchema = z.object({
@@ -118,7 +125,7 @@ export const KitCoverageSchema = z.object({
 export const KitScheduleDaySchema = z.object({
   day: z.number().int().min(1),
   focus: z.string().min(1),
-  question_ids: z.array(z.string().regex(/^q\d+$/)),
+  question_ids: z.array(z.string().regex(/^q[a-zA-Z0-9_-]+$/)),
   minutes: z.number().int().positive()
 });
 
@@ -134,4 +141,15 @@ export const Step7KitSchema = z.object({
   flashcards: z.array(FlashcardItemSchema),
   coverage: KitCoverageSchema,
   schedule: KitScheduleSchema
+});
+
+export const KitUpdateInputSchema = z.object({
+  role: z.object({
+    title: z.string().optional(),
+    seniority: z.string().optional(),
+    responsibilities: z.array(z.string()).optional(),
+    requirements: z.array(RequirementItemSchema).optional()
+  }).optional(),
+  questions: z.array(QuestionItemSchema).optional(),
+  flashcards: z.array(FlashcardItemSchema).optional()
 });

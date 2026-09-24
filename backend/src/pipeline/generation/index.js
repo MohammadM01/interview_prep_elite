@@ -9,6 +9,7 @@ import { Step5KitAnalysisSchema, Step6KitSchema, Step7KitSchema, QuestionItemSch
 import { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
 import { calculateCoverage } from '../coverage/index.js';
 import { generateSchedule } from '../schedule/index.js';
+import { mergeGeneratedContent } from './mergeContent.js';
 
 export { extractRequirementsFromJd, normalizeRequirementIds } from './requirementExtraction.js';
 export { generateCompanyBrief, validateAndFilterSources } from './companyBrief.js';
@@ -17,6 +18,7 @@ export { generateQuestions, validateAndAssignQuestionIds } from './questionGener
 export { generateFlashcards, validateAndAssignFlashcardIds } from './flashcardGeneration.js';
 export { calculateCoverage, runCoveragePipeline } from '../coverage/index.js';
 export { generateSchedule } from '../schedule/index.js';
+export { mergeGeneratedContent } from './mergeContent.js';
 export { Step5KitAnalysisSchema, Step6KitSchema, Step7KitSchema, QuestionItemSchema, FlashcardItemSchema, KitCoverageSchema, KitScheduleSchema } from './schemas.js';
 export { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
 
@@ -294,6 +296,14 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
       options: { provider, timeoutMs }
     });
 
+    if (kit.questions && kit.questions.some((q) => q.state === 'pinned' || q.state === 'edited')) {
+      const merged = mergeGeneratedContent({
+        existingQuestions: kit.questions,
+        newQuestions: generatedQuestions
+      });
+      generatedQuestions = merged.questions;
+    }
+
     // Persist intermediate questions immediately so earlier data is preserved
     await db.collection('kits').updateOne(
       { _id: kitObjectId, user_id: userObjectId },
@@ -339,6 +349,14 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
       role,
       options: { provider, timeoutMs }
     });
+
+    if (kit.flashcards && kit.flashcards.some((f) => f.state === 'pinned' || f.state === 'edited')) {
+      const merged = mergeGeneratedContent({
+        existingFlashcards: kit.flashcards,
+        newFlashcards: generatedFlashcards
+      });
+      generatedFlashcards = merged.flashcards;
+    }
   } catch (err) {
     if (jobObjectId) {
       await db.collection('generation_jobs').updateOne(

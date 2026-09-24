@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const DayScheduleSchema = z.object({
   day: z.number().int().min(1),
   focus: z.string().min(1),
-  question_ids: z.array(z.string().regex(/^q\d+$/)),
+  question_ids: z.array(z.string().regex(/^q[a-zA-Z0-9_-]+$/)),
   minutes: z.number().int().positive()
 });
 
