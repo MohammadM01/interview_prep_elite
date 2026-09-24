@@ -139,12 +139,44 @@ export default function GuidedHomePage() {
       setActiveKit(data.kit);
       setViewState('generating');
 
-      // Step 2: Trigger Generation immediately
+      // Step 2: Trigger Staged Generation sequentially (/start -> /content -> /finalize)
       if (kitId) {
-        fetch(`${API_BASE}/api/kits/${kitId}/generate`, {
-          method: 'POST',
-          credentials: 'include'
-        }).catch(() => {});
+        (async () => {
+          try {
+            // Stage 1: Research, Extraction & Role Analysis
+            const res1 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/start`, {
+              method: 'POST',
+              credentials: 'include'
+            });
+            if (!res1.ok) {
+              const errData = await res1.json().catch(() => ({}));
+              throw new Error(errData.error?.message || 'Stage 1 (Research & Extraction) failed');
+            }
+
+            // Stage 2: Question & Flashcard Content Generation
+            const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/content`, {
+              method: 'POST',
+              credentials: 'include'
+            });
+            if (!res2.ok) {
+              const errData = await res2.json().catch(() => ({}));
+              throw new Error(errData.error?.message || 'Stage 2 (Questions & Flashcards) failed');
+            }
+
+            // Stage 3: Coverage Analysis & Preparation Schedule Finalization
+            const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+              method: 'POST',
+              credentials: 'include'
+            });
+            if (!res3.ok) {
+              const errData = await res3.json().catch(() => ({}));
+              throw new Error(errData.error?.message || 'Stage 3 (Coverage & Schedule) failed');
+            }
+          } catch (stageErr) {
+            console.error('Staged generation pipeline error:', stageErr);
+            setErrorMessage(stageErr.message || 'Generation pipeline failed');
+          }
+        })();
       }
     } catch (err) {
       setErrorMessage(err.message || 'Unable to start kit generation.');

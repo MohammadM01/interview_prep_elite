@@ -105,9 +105,9 @@ test('Generation Recovery & Retry Suite', async (t) => {
   });
 
   // 1. Incomplete kit can retry generation
-  await t.test('1. incomplete kit can retry generation via POST /api/kits/:id/generate', async () => {
+  await t.test('1. incomplete kit can retry generation via POST /api/kits/:id/generate (sync)', async () => {
     const res = await request(app)
-      .post(`/api/kits/${incompleteKitId}/generate`)
+      .post(`/api/kits/${incompleteKitId}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     assert.equal(res.status, 200);
@@ -120,13 +120,13 @@ test('Generation Recovery & Retry Suite', async (t) => {
   });
 
   // 2. Failed generation can retry
-  await t.test('2. failed generation can retry and updates job to completed', async () => {
+  await t.test('2. failed generation can retry and updates job to completed (sync)', async () => {
     // Initial verify that job was failed
     const initialJob = await db.collection('generation_jobs').findOne({ _id: new ObjectId(failedJobId) });
     assert.equal(initialJob.status, 'failed');
 
     const res = await request(app)
-      .post(`/api/kits/${failedKitId}/generate`)
+      .post(`/api/kits/${failedKitId}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     assert.equal(res.status, 200);
@@ -166,11 +166,11 @@ test('Generation Recovery & Retry Suite', async (t) => {
 
     // Simulate concurrent generation calls
     const promise1 = request(app)
-      .post(`/api/kits/${newKitId}/generate`)
+      .post(`/api/kits/${newKitId}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     const promise2 = request(app)
-      .post(`/api/kits/${newKitId}/generate`)
+      .post(`/api/kits/${newKitId}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     const [res1, res2] = await Promise.all([promise1, promise2]);
@@ -189,7 +189,7 @@ test('Generation Recovery & Retry Suite', async (t) => {
     const originalQuestions = kitBefore.questions;
 
     const res = await request(app)
-      .post(`/api/kits/${failedKitId}/generate`)
+      .post(`/api/kits/${failedKitId}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     assert.equal(res.status, 200);

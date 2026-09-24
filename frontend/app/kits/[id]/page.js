@@ -151,19 +151,40 @@ export default function KitWorkspacePage() {
         progress: 10
       }));
 
-      const res = await fetch(`${API_BASE}/api/kits/${kitId}/generate`, {
+      // Stage 1: Start
+      const res1 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/start`, {
         method: 'POST',
         credentials: 'include'
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 409) {
-          if (data.job) setActiveJob(data.job);
+      const data1 = await res1.json();
+      if (!res1.ok) {
+        if (res1.status === 409) {
+          if (data1.job) setActiveJob(data1.job);
           return;
         }
-        throw new Error(data.error?.message || 'Failed to start generation');
+        throw new Error(data1.error?.message || 'Failed at Stage 1 (Research & Extraction)');
+      }
+      if (data1.job) setActiveJob(data1.job);
+
+      // Stage 2: Content
+      const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/content`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data2 = await res2.json();
+      if (!res2.ok) {
+        throw new Error(data2.error?.message || 'Failed at Stage 2 (Questions & Flashcards)');
+      }
+      if (data2.job) setActiveJob(data2.job);
+
+      // Stage 3: Finalize
+      const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res3.json();
+      if (!res3.ok) {
+        throw new Error(data.error?.message || 'Failed at Stage 3 (Coverage & Schedule)');
       }
 
       if (data.job) {

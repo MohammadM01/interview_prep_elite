@@ -7,6 +7,9 @@ import {
   getKitResearch,
   startKitAnalysis,
   startKitGeneration,
+  startKitGenerationStart,
+  startKitGenerationContent,
+  startKitGenerationFinalize,
   updateKitHandler,
   getKitPracticeHandler,
   updateKitPracticeHandler
@@ -26,6 +29,10 @@ router.patch('/:id/practice', updateKitPracticeHandler);
 router.post('/:id/research', startKitResearch);
 router.get('/:id/research', getKitResearch);
 router.post('/:id/analyze', startKitAnalysis);
+router.post('/:id/generate/start', startKitGenerationStart);
+router.post('/:id/generate/content', startKitGenerationContent);
+router.post('/:id/generate/finalize', startKitGenerationFinalize);
 router.post('/:id/generate', startKitGeneration);
 
 export default router;
+

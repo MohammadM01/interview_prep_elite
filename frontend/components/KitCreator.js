@@ -31,13 +31,34 @@ export default function KitCreator({ currentUser: propUser }) {
     }));
 
     try {
-      const res = await fetch(`${API_BASE}/api/kits/${kitId}/generate`, {
+      // Stage 1
+      const res1 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/start`, {
         method: 'POST',
         credentials: 'include'
       });
-      const data = await res.json();
+      if (!res1.ok) {
+        const err1 = await res1.json().catch(() => ({}));
+        throw new Error(err1.error?.message || 'Stage 1 failed');
+      }
 
-      if (!res.ok) {
+      // Stage 2
+      const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/content`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      if (!res2.ok) {
+        const err2 = await res2.json().catch(() => ({}));
+        throw new Error(err2.error?.message || 'Stage 2 failed');
+      }
+
+      // Stage 3
+      const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res3.json();
+
+      if (!res3.ok) {
         setGenerationState((prev) => ({
           ...prev,
           [kitId]: {

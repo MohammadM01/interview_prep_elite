@@ -369,9 +369,9 @@ test('Step 6 Question & Flashcard Generation Test Suite', async (t) => {
   });
 
   // 15. Controller integration: POST /api/kits/:id/generate
-  await t.test('15. POST /api/kits/:id/generate succeeds for kit owner', async () => {
+  await t.test('15. POST /api/kits/:id/generate succeeds for kit owner (sync wrapper)', async () => {
     const res = await request(app)
-      .post(`/api/kits/${createdKitIdUserA}/generate`)
+      .post(`/api/kits/${createdKitIdUserA}/generate?sync=true`)
       .set('Cookie', cookieUserA);
 
     assert.equal(res.status, 200);

@@ -197,24 +197,112 @@ export async function startKitAnalysis(req, res) {
   }
 }
 
-export async function startKitGeneration(req, res) {
+export async function startKitGenerationStart(req, res) {
   try {
     const { id } = req.params;
-    const { executeKitGeneration } = await import('../pipeline/generation/index.js');
+    const { executeKitGenerationStart } = await import('../pipeline/generation/index.js');
 
-    const result = await executeKitGeneration({
+    const result = await executeKitGenerationStart({
       kitId: id,
       userId: req.user.id
     });
 
     return res.status(200).json(result);
   } catch (error) {
+    console.error('Kit generation start error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_START_FAILED',
+        message: error.message || 'An error occurred during stage 1 initialization'
+      }
+    });
+  }
+}
+
+export async function startKitGenerationContent(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitGenerationContent } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitGenerationContent({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit generation content error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'STAGE_PREREQUISITE_FAILED' ? 400 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_CONTENT_FAILED',
+        message: error.message || 'An error occurred during stage 2 question/flashcard generation'
+      }
+    });
+  }
+}
+
+export async function startKitGenerationFinalize(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitGenerationFinalize } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitGenerationFinalize({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit generation finalize error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'STAGE_PREREQUISITE_FAILED' ? 400 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_FINALIZE_FAILED',
+        message: error.message || 'An error occurred during stage 3 coverage/schedule finalization'
+      }
+    });
+  }
+}
+
+export async function startKitGeneration(req, res) {
+  try {
+    const { id } = req.params;
+    const isSync = req.query.sync === 'true' || req.body?.sync === true;
+
+    if (isSync) {
+      const { executeKitGeneration } = await import('../pipeline/generation/index.js');
+      const result = await executeKitGeneration({
+        kitId: id,
+        userId: req.user.id
+      });
+      return res.status(200).json(result);
+    }
+
+    // Default non-synchronous compatibility wrapper:
+    // Runs Stage 1 (start) to ensure the job is active and analysis is done,
+    // then returns immediately so Vercel serverless function never times out.
+    const { executeKitGenerationStart } = await import('../pipeline/generation/index.js');
+    const result = await executeKitGenerationStart({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json({
+      status: 'started',
+      stage: result.stage,
+      message: 'Kit generation initialized. Call /generate/content and /generate/finalize sequentially or poll job status.',
+      job: result.job,
+      kit: result.kit
+    });
+  } catch (error) {
     console.error('Kit generation error:', error);
     const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
     return res.status(status).json({
       error: {
         code: error.code || 'GENERATION_FAILED',
-        message: error.message || 'An error occurred during question/flashcard generation'
+        message: error.message || 'An error occurred during kit generation'
       }
     });
   }
