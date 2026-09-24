@@ -4,23 +4,26 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import AuthScreen from '@/components/AuthScreen';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-function PracticeContent() {
+function PracticeStage() {
   const { id: kitId } = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialMode = searchParams.get('mode') === 'flashcards' ? 'flashcards' : 'questions';
 
   const { user, loading: authLoading } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   const [mode, setMode] = useState(initialMode); // 'questions' | 'flashcards'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [practiceData, setPracticeData] = useState(null);
 
-  // Practice session state
+  // Focus mode session state
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isRevealed, setIsRevealed] = useState(false);
   const [selectedConfidence, setSelectedConfidence] = useState(null);
@@ -57,14 +60,11 @@ function PracticeContent() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
-      router.push('/');
-      return;
-    }
+    if (!user) return;
     fetchPracticeData();
-  }, [user, authLoading, fetchPracticeData, router]);
+  }, [user, authLoading, fetchPracticeData]);
 
-  // Sync mode with URL search params if changed externally
+  // Sync mode with URL search params
   useEffect(() => {
     const urlMode = searchParams.get('mode') === 'flashcards' ? 'flashcards' : 'questions';
     if (urlMode !== mode) {
@@ -85,7 +85,7 @@ function PracticeContent() {
   const items = mode === 'questions' ? questions : flashcards;
   const currentItem = items[currentIndex] || null;
 
-  // Initialize selected values from existing saved state whenever currentItem changes
+  // Sync selected state on item change
   useEffect(() => {
     if (!currentItem) return;
     setIsRevealed(false);
@@ -101,7 +101,7 @@ function PracticeContent() {
     }
   }, [currentIndex, currentItem, mode, practiceMap]);
 
-  // Save rating for the current item to backend
+  // Save progress
   const saveProgress = async (confidenceVal, coveredVal) => {
     if (!currentItem) return;
 
@@ -127,7 +127,6 @@ function PracticeContent() {
 
       if (res.ok) {
         const updated = await res.json();
-        // Update local practice map
         setPracticeData((prev) => ({
           ...prev,
           practice: updated.practice,
@@ -135,7 +134,7 @@ function PracticeContent() {
         }));
       }
     } catch {
-      // Graceful fallback for network issues
+      // Handled silently
     } finally {
       setIsSaving(false);
     }
@@ -166,13 +165,6 @@ function PracticeContent() {
     }
   };
 
-  const handleRestartSession = async () => {
-    await fetchPracticeData();
-    setCurrentIndex(0);
-    setIsRevealed(false);
-    setSessionCompleted(false);
-  };
-
   const handleSwitchMode = (newMode) => {
     setMode(newMode);
     setCurrentIndex(0);
@@ -181,7 +173,6 @@ function PracticeContent() {
     router.replace(`/kits/${kitId}/practice${newMode === 'flashcards' ? '?mode=flashcards' : ''}`);
   };
 
-  // Find linked requirement texts
   const linkedRequirements = useMemo(() => {
     if (!currentItem || !Array.isArray(currentItem.requirement_ids)) return [];
     return currentItem.requirement_ids
@@ -189,382 +180,330 @@ function PracticeContent() {
       .filter(Boolean);
   }, [currentItem, requirements]);
 
-  // Loading & Error States
-  if (loading || authLoading) {
+  // 1. ABSOLUTE RULE — AUTHENTICATION GATE
+  if (authLoading) {
     return (
-      <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] p-8 md:p-12">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <div className="h-6 w-36 bg-zinc-200 animate-pulse rounded"></div>
-          <div className="h-10 w-80 bg-zinc-200 animate-pulse rounded"></div>
-          <div className="h-64 bg-white rounded-lg border border-[#E4E4E7] animate-pulse p-6"></div>
+      <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center text-xs font-mono-num text-[var(--text-muted)] animate-pulse">
+        PREPARING FOCUS MODE...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthScreen onSuccess={fetchPracticeData} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center">
+        <div className="text-xs font-mono-num text-[var(--text-muted)] animate-pulse">
+          LOADING PRACTICE SESSION...
         </div>
-      </main>
+      </div>
     );
   }
 
   if (error || !practiceData) {
     return (
-      <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] p-8 md:p-12">
-        <div className="max-w-md mx-auto p-6 rounded-lg bg-white border border-[#E4E4E7] text-center space-y-4 shadow-xs">
-          <h2 className="text-sm font-semibold text-rose-700">Unable to Start Practice</h2>
-          <p className="text-xs text-[#71717A]">{error || 'Interview kit not found.'}</p>
+      <div className="min-h-screen bg-[var(--bg-page)] p-8 text-center flex items-center justify-center">
+        <div className="max-w-md mx-auto p-6 rounded-[8px] border border-[var(--border-light)] bg-[var(--bg-surface)]">
+          <h2 className="text-xs font-mono-num font-semibold text-[var(--accent-rose)] mb-2 uppercase">
+            SESSION ERROR
+          </h2>
+          <p className="text-xs text-[var(--text-secondary)] mb-4">{error || 'Kit not found.'}</p>
           <Link
-            href="/"
-            className="inline-block px-4 py-2 text-xs font-medium rounded bg-[#18181B] text-white hover:bg-zinc-800 transition-colors"
+            href={`/kits/${kitId}`}
+            className="text-xs font-mono-num uppercase tracking-wider text-[var(--text-main)] underline"
           >
-            Return to Kits
+            ← Return to Kit
           </Link>
         </div>
-      </main>
+      </div>
     );
   }
 
+  const roleTitle = practiceData.role?.title || 'Target Role';
+  const company = practiceData.company_url?.replace(/https?:\/\/(www\.)?/, '').split('/')[0]
+    || practiceData.source?.company_url?.replace(/https?:\/\/(www\.)?/, '').split('/')[0]
+    || 'Target Company';
   const totalItems = items.length;
-  const progressPercent = totalItems > 0 ? Math.round(((currentIndex + (sessionCompleted ? 1 : 0)) / totalItems) * 100) : 0;
+  const progressPercent = totalItems > 0 ? Math.round(((currentIndex + 1) / totalItems) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-[#FAFAF9] text-[#18181B] pb-24">
-      {/* Header bar */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-[#E4E4E7] px-6 py-3.5 shadow-xs">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/kits/${kitId}`}
-              className="text-xs font-medium text-[#71717A] hover:text-[#18181B] flex items-center gap-1 transition-colors"
-            >
-              <span>←</span>
-              <span>Kit Builder</span>
-            </Link>
-            <span className="text-[#E4E4E7]">|</span>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold tracking-tight text-[#18181B]">
-                  {practiceData.company} · Practice Mode
-                </h1>
-                <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-                  {practiceData.role}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Mode Switcher */}
-          <div className="flex items-center gap-2 bg-[#FAFAF9] p-1 rounded-lg border border-[#E4E4E7] text-xs font-medium">
-            <button
-              onClick={() => handleSwitchMode('questions')}
-              className={`px-3 py-1 rounded transition-colors ${
-                mode === 'questions'
-                  ? 'bg-white text-[#18181B] shadow-xs border border-[#E4E4E7]'
-                  : 'text-[#71717A] hover:text-[#18181B]'
-              }`}
-            >
-              Questions ({questions.length})
-            </button>
-            <button
-              onClick={() => handleSwitchMode('flashcards')}
-              className={`px-3 py-1 rounded transition-colors ${
-                mode === 'flashcards'
-                  ? 'bg-white text-[#18181B] shadow-xs border border-[#E4E4E7]'
-                  : 'text-[#71717A] hover:text-[#18181B]'
-              }`}
-            >
-              Flashcards ({flashcards.length})
-            </button>
-          </div>
+    <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-main)] flex flex-col justify-between">
+      {/* ============================================================ */}
+      {/* PRACTICE TOP BAR: REDUCED NAVIGATION, FOCUS MODE */}
+      {/* ============================================================ */}
+      <header className="h-14 border-b border-[var(--border-light)] px-4 sm:px-8 flex items-center justify-between bg-[var(--bg-surface)]">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/kits/${kitId}`}
+            className="text-xs font-mono-num uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-main)] transition-colors flex items-center gap-1.5"
+          >
+            <span>←</span>
+            <span>Exit Practice</span>
+          </Link>
+          <span className="text-[var(--border-medium)]">·</span>
+          <span className="text-xs font-mono-num uppercase tracking-wider text-[var(--text-muted)] truncate max-w-[140px] sm:max-w-xs">
+            {company}
+          </span>
         </div>
+
+        {/* Mode Switcher */}
+        <div className="flex items-center gap-1 p-0.5 bg-[var(--bg-subtle)] rounded-[6px] text-xs font-mono-num">
+          <button
+            onClick={() => handleSwitchMode('questions')}
+            className={`px-3 py-1 rounded-[4px] font-medium transition-smooth ${
+              mode === 'questions'
+                ? 'bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-main)]'
+            }`}
+          >
+            QUESTIONS
+          </button>
+          <button
+            onClick={() => handleSwitchMode('flashcards')}
+            className={`px-3 py-1 rounded-[4px] font-medium transition-smooth ${
+              mode === 'flashcards'
+                ? 'bg-[var(--bg-surface)] text-[var(--accent-primary)] shadow-xs'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-main)]'
+            }`}
+          >
+            FLASHCARDS
+          </button>
+        </div>
+
+        <button
+          onClick={toggleTheme}
+          className="text-xs font-mono-num text-[var(--text-muted)] hover:text-[var(--text-main)]"
+        >
+          {theme === 'dark' ? 'LIGHT' : 'DARK'}
+        </button>
       </header>
 
-      <div className="max-w-3xl mx-auto px-6 mt-8 space-y-6">
-        {/* Progress Bar & Header Details */}
-        <div className="bg-white p-5 rounded-lg border border-[#E4E4E7] shadow-xs">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="font-semibold text-[#18181B]">
-              {mode === 'questions' ? 'Interview Questions Practice' : 'Flashcard Study Deck'}
-            </span>
-            <span className="font-mono text-[#71717A]">
-              {totalItems === 0
-                ? '0 items'
-                : sessionCompleted
-                ? `Completed ${totalItems} of ${totalItems}`
-                : `${mode === 'questions' ? 'Question' : 'Card'} ${currentIndex + 1} of ${totalItems}`}
-            </span>
-          </div>
-          <div className="w-full bg-[#FAFAF9] h-2 rounded-full overflow-hidden border border-[#E4E4E7]">
-            <div
-              className="bg-[#18181B] h-full transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            ></div>
-          </div>
-          <div className="flex items-center justify-between text-[11px] text-[#A1A1AA] mt-2">
-            <span>Deterministic least-confidence review queue</span>
-            <span>{isSaving ? 'Saving progress...' : 'Progress saved'}</span>
-          </div>
-        </div>
-
-        {/* Empty States */}
-        {totalItems === 0 ? (
-          <div className="p-12 text-center bg-white rounded-lg border border-[#E4E4E7] space-y-4">
-            <h3 className="text-sm font-semibold text-[#18181B]">
-              No {mode === 'questions' ? 'questions' : 'flashcards'} available to practice
-            </h3>
-            <p className="text-xs text-[#71717A] max-w-sm mx-auto">
-              This kit currently has no {mode === 'questions' ? 'interview questions' : 'flashcards'}. You can add them in Builder Mode or run generation.
-            </p>
-            <Link
-              href={`/kits/${kitId}`}
-              className="inline-block px-4 py-2 text-xs font-medium rounded bg-[#18181B] text-white hover:bg-zinc-800"
-            >
-              Open Builder Mode
-            </Link>
-          </div>
-        ) : sessionCompleted ? (
-          /* Session Completed Summary Card */
-          <div className="p-8 bg-white rounded-lg border border-[#E4E4E7] shadow-xs space-y-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto text-xl font-bold border border-emerald-200">
-              ✓
+      {/* ============================================================ */}
+      {/* MAIN STAGE: ONE THING AT A TIME */}
+      {/* ============================================================ */}
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-8 py-8 md:py-16 flex flex-col justify-center">
+        {sessionCompleted ? (
+          /* COMPLETION STATE WITH ONE OBVIOUS NEXT ACTION */
+          <div className="py-8 space-y-6 text-center">
+            <div className="text-[11px] font-mono-num uppercase tracking-wider text-[var(--accent-emerald)] font-semibold">
+              04 / PRACTICE COMPLETE
             </div>
-            <div>
-              <h2 className="text-base font-semibold text-[#18181B]">Practice Session Completed</h2>
-              <p className="text-xs text-[#71717A] mt-1">
-                You practiced all {totalItems} {mode === 'questions' ? 'questions' : 'flashcards'} in this session.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto text-xs">
-              <div className="p-3 rounded bg-[#FAFAF9] border border-[#E4E4E7]">
-                <p className="text-[#71717A] text-[11px]">Total Items</p>
-                <p className="text-base font-semibold text-[#18181B] mt-0.5">{totalItems}</p>
-              </div>
-              <div className="p-3 rounded bg-rose-50/60 border border-rose-100">
-                <p className="text-rose-700 text-[11px]">Low Confidence</p>
-                <p className="text-base font-semibold text-rose-800 mt-0.5">
-                  {Object.values(mode === 'questions' ? practiceMap.questions : practiceMap.flashcards).filter((i) => i.confidence === 'low').length}
-                </p>
-              </div>
-              <div className="p-3 rounded bg-amber-50/60 border border-amber-100">
-                <p className="text-amber-700 text-[11px]">Medium Confidence</p>
-                <p className="text-base font-semibold text-amber-800 mt-0.5">
-                  {Object.values(mode === 'questions' ? practiceMap.questions : practiceMap.flashcards).filter((i) => i.confidence === 'medium').length}
-                </p>
-              </div>
-              <div className="p-3 rounded bg-emerald-50/60 border border-emerald-100">
-                <p className="text-emerald-700 text-[11px]">High Confidence</p>
-                <p className="text-base font-semibold text-emerald-800 mt-0.5">
-                  {Object.values(mode === 'questions' ? practiceMap.questions : practiceMap.flashcards).filter((i) => i.confidence === 'high').length}
-                </p>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-[#71717A]">
-              Next session will automatically sort items with lower confidence to the front.
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[var(--text-main)]">
+              All {totalItems} items reviewed.
+            </h1>
+            <p className="text-xs text-[var(--text-secondary)] max-w-md mx-auto">
+              Your self-ratings are saved. Weak spots with low confidence are automatically prioritized for your next review.
             </p>
 
-            <div className="flex justify-center gap-3 pt-2">
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {mode === 'questions' ? (
+                <button
+                  onClick={() => handleSwitchMode('flashcards')}
+                  className="px-6 py-2.5 text-xs font-mono-num uppercase tracking-wider font-semibold bg-[var(--text-main)] text-[var(--bg-surface)] hover:bg-[var(--accent-primary)] rounded-[6px] transition-smooth cursor-pointer"
+                >
+                  Continue to Flashcards →
+                </button>
+              ) : (
+                <Link
+                  href={`/kits/${kitId}`}
+                  className="px-6 py-2.5 text-xs font-mono-num uppercase tracking-wider font-semibold bg-[var(--text-main)] text-[var(--bg-surface)] hover:bg-[var(--accent-primary)] rounded-[6px] transition-smooth"
+                >
+                  View Preparation Plan →
+                </Link>
+              )}
+
               <button
-                onClick={handleRestartSession}
-                className="px-4 py-2 text-xs font-medium rounded bg-[#18181B] text-white hover:bg-zinc-800 transition-colors shadow-xs"
+                onClick={() => {
+                  setCurrentIndex(0);
+                  setIsRevealed(false);
+                  setSessionCompleted(false);
+                }}
+                className="px-5 py-2.5 text-xs font-mono-num uppercase tracking-wider font-semibold border border-[var(--border-light)] hover:border-[var(--text-main)] text-[var(--text-main)] rounded-[6px] transition-smooth bg-[var(--bg-surface)] cursor-pointer"
               >
-                Practice Again (Least Confidence First)
+                Restart Session
               </button>
-              <Link
-                href={`/kits/${kitId}`}
-                className="px-4 py-2 text-xs font-medium rounded bg-white text-[#18181B] border border-[#E4E4E7] hover:bg-zinc-50 transition-colors"
-              >
-                Return to Kit
-              </Link>
             </div>
+          </div>
+        ) : !currentItem ? (
+          <div className="py-12 text-center text-xs font-mono-num text-[var(--text-muted)]">
+            No items available in this section.
           </div>
         ) : (
-          /* ==================================================== */
-          /* ONE ITEM AT A TIME PRACTICE CARD */
-          /* ==================================================== */
-          <div className="p-6 md:p-8 rounded-lg bg-white border border-[#E4E4E7] shadow-xs space-y-6">
-            {/* Top Badge Info */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#F4F4F5]">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200">
-                  {currentItem.id}
+          /* ACTIVE ITEM VIEW: QUESTION DOMINATES SCREEN */
+          <div className="space-y-8">
+            {/* PROGRESS INDICATOR */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-mono-num text-[var(--text-muted)]">
+                <span className="font-semibold text-[var(--accent-primary)]">
+                  {mode === 'questions' ? 'QUESTION' : 'FLASHCARD'} {String(currentIndex + 1).padStart(2, '0')} / {String(totalItems).padStart(2, '0')}
                 </span>
-                {mode === 'questions' && currentItem.category && (
-                  <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-zinc-100 text-zinc-700 capitalize">
-                    {currentItem.category.replace('_', ' ')}
-                  </span>
-                )}
-                {mode === 'questions' && currentItem.difficulty && (
-                  <span className="px-2 py-0.5 text-[11px] font-medium rounded bg-[#FAFAF9] border border-[#E4E4E7] text-zinc-600">
-                    Difficulty Level {currentItem.difficulty}
-                  </span>
-                )}
+                <span>{progressPercent}% Complete</span>
               </div>
-
-              {/* Navigation Back / Next shortcuts */}
-              <div className="flex items-center gap-1.5 text-xs text-[#71717A]">
-                <button
-                  onClick={handlePrev}
-                  disabled={currentIndex === 0}
-                  className="px-2 py-1 rounded border border-[#E4E4E7] hover:bg-zinc-50 disabled:opacity-30 disabled:hover:bg-transparent"
-                >
-                  ← Prev
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="px-2 py-1 rounded border border-[#E4E4E7] hover:bg-zinc-50"
-                >
-                  Next →
-                </button>
+              <div className="w-full h-1 bg-[var(--border-light)] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[var(--accent-primary)] transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
             </div>
 
-            {/* Prompt / Front Area */}
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-[#71717A] font-semibold mb-2">
-                {mode === 'questions' ? 'Interview Question' : 'Flashcard Front'}
-              </p>
-              <h2 className="text-base md:text-lg font-medium text-[#18181B] leading-relaxed">
+            {/* DOMINATING QUESTION PROMPT */}
+            <div className="py-6 border-y border-[var(--border-light)] space-y-4">
+              <div className="flex items-center gap-3 text-xs font-mono-num text-[var(--text-muted)]">
+                {mode === 'questions' ? (
+                  <span className="uppercase tracking-wider">
+                    {currentItem.category} · LEVEL {currentItem.difficulty}
+                  </span>
+                ) : (
+                  <span className="uppercase tracking-wider">FLASHCARD RECALL</span>
+                )}
+                <span className="text-[var(--border-medium)]">·</span>
+                <span>{currentItem.id}</span>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight text-[var(--text-main)] leading-snug">
                 {mode === 'questions' ? currentItem.prompt : currentItem.front}
               </h2>
-            </div>
 
-            {/* Linked Requirements */}
-            {linkedRequirements.length > 0 && (
-              <div className="pt-2">
-                <p className="text-[11px] text-[#71717A] font-medium mb-1.5">
-                  Requirement(s) Targeted:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
+              {/* Linked Requirement Tag */}
+              {linkedRequirements.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-2 text-[11px] font-mono-num text-[var(--text-secondary)]">
+                  <span className="text-[var(--text-muted)]">SKILL:</span>
                   {linkedRequirements.map((r) => (
                     <span
                       key={r.id}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[#FAFAF9] border border-[#E4E4E7] text-zinc-700"
+                      className="px-2 py-0.5 rounded-[4px] bg-[var(--bg-subtle)] border border-[var(--border-subtle)]"
                     >
-                      <span className="font-semibold text-zinc-900">{r.id}:</span>
-                      <span className="truncate max-w-xs">{r.text}</span>
+                      {r.text}
                     </span>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Reveal Answer Section */}
-            {!isRevealed ? (
-              <div className="pt-4 border-t border-[#F4F4F5]">
+            {/* REVEAL ANSWER */}
+            <div className="space-y-4">
+              {!isRevealed ? (
                 <button
                   onClick={() => setIsRevealed(true)}
-                  className="w-full py-3 text-xs font-semibold rounded-lg bg-[#18181B] text-white hover:bg-zinc-800 transition-colors shadow-xs"
+                  className="w-full py-4 text-xs font-mono-num uppercase tracking-wider font-semibold border border-dashed border-[var(--border-medium)] hover:border-[var(--text-main)] text-[var(--text-secondary)] hover:text-[var(--text-main)] rounded-[6px] transition-smooth cursor-pointer"
                 >
-                  Reveal Answer Outline
+                  Reveal Answer Outline ↓
                 </button>
-              </div>
-            ) : (
-              <div className="space-y-6 pt-4 border-t border-[#F4F4F5]">
-                {/* Answer Content */}
-                <div className="p-4 rounded-lg bg-[#FAFAF9] border border-[#E4E4E7] space-y-2">
-                  <p className="text-[11px] uppercase tracking-wider text-[#71717A] font-semibold">
-                    {mode === 'questions' ? 'Answer Outline & Key Points' : 'Flashcard Back'}
-                  </p>
-                  <p className="text-xs text-[#18181B] leading-relaxed whitespace-pre-line font-normal">
+              ) : (
+                <div className="p-5 rounded-[8px] bg-[var(--bg-elevated)] border border-[var(--border-light)] space-y-2">
+                  <div className="text-[10px] font-mono-num uppercase tracking-wider text-[var(--text-muted)] font-semibold">
+                    {mode === 'questions' ? 'Target Answer Outline' : 'Explanation & Principle'}
+                  </div>
+                  <p className="text-xs sm:text-sm text-[var(--text-main)] leading-relaxed whitespace-pre-wrap">
                     {mode === 'questions' ? currentItem.answer_outline : currentItem.back}
                   </p>
                 </div>
+              )}
+            </div>
 
-                {/* Rating Controls: Confidence Selection */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-[#18181B]">
-                    How confident are you with this answer?
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectConfidence('low')}
-                      className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
-                        selectedConfidence === 'low'
-                          ? 'bg-rose-50 text-rose-800 border-rose-300 ring-1 ring-rose-200 font-semibold'
-                          : 'bg-white text-zinc-700 border-[#E4E4E7] hover:bg-zinc-50'
-                      }`}
-                    >
-                      <span>Low</span>
-                      {selectedConfidence === 'low' && <span>✓</span>}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectConfidence('medium')}
-                      className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
-                        selectedConfidence === 'medium'
-                          ? 'bg-amber-50 text-amber-800 border-amber-300 ring-1 ring-amber-200 font-semibold'
-                          : 'bg-white text-zinc-700 border-[#E4E4E7] hover:bg-zinc-50'
-                      }`}
-                    >
-                      <span>Medium</span>
-                      {selectedConfidence === 'medium' && <span>✓</span>}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSelectConfidence('high')}
-                      className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
-                        selectedConfidence === 'high'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200 font-semibold'
-                          : 'bg-white text-zinc-700 border-[#E4E4E7] hover:bg-zinc-50'
-                      }`}
-                    >
-                      <span>High</span>
-                      {selectedConfidence === 'high' && <span>✓</span>}
-                    </button>
+            {/* DECISION & CONFIDENCE CONTROLS */}
+            <div className="pt-2 border-t border-[var(--border-light)] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Confidence Level */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono-num uppercase tracking-wider text-[var(--text-muted)] font-medium block">
+                    Confidence
+                  </span>
+                  <div className="flex items-center gap-1.5 font-mono-num text-xs">
+                    {['low', 'medium', 'high'].map((lvl) => {
+                      const active = selectedConfidence === lvl;
+                      return (
+                        <button
+                          key={lvl}
+                          onClick={() => handleSelectConfidence(lvl)}
+                          className={`px-3 py-1.5 rounded-[6px] uppercase tracking-wider text-[11px] font-semibold transition-smooth cursor-pointer ${
+                            active
+                              ? lvl === 'low'
+                                ? 'bg-rose-500 text-white'
+                                : lvl === 'medium'
+                                ? 'bg-amber-500 text-white'
+                                : 'bg-emerald-600 text-white'
+                              : 'bg-[var(--bg-surface)] border border-[var(--border-light)] text-[var(--text-secondary)] hover:text-[var(--text-main)]'
+                          }`}
+                        >
+                          {lvl}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Coverage Selection (For Questions Mode) */}
+                {/* Covered Status */}
                 {mode === 'questions' && (
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-[#18181B]">
-                      Coverage Status for this requirement:
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-mono-num uppercase tracking-wider text-[var(--text-muted)] font-medium block">
+                      Coverage
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono-num text-xs">
                       <button
-                        type="button"
                         onClick={() => handleSelectCovered(true)}
-                        className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
+                        className={`px-3 py-1.5 rounded-[6px] text-[11px] font-semibold uppercase tracking-wider transition-smooth cursor-pointer ${
                           selectedCovered === true
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-1 ring-emerald-200 font-semibold'
-                            : 'bg-white text-zinc-700 border-[#E4E4E7] hover:bg-zinc-50'
+                            ? 'bg-[var(--accent-primary)] text-white'
+                            : 'bg-[var(--bg-surface)] border border-[var(--border-light)] text-[var(--text-secondary)] hover:text-[var(--text-main)]'
                         }`}
                       >
-                        <span>Covered</span>
-                        {selectedCovered === true && <span>✓</span>}
+                        Covered
                       </button>
-
                       <button
-                        type="button"
                         onClick={() => handleSelectCovered(false)}
-                        className={`py-2 px-3 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1.5 ${
+                        className={`px-3 py-1.5 rounded-[6px] text-[11px] font-semibold uppercase tracking-wider transition-smooth cursor-pointer ${
                           selectedCovered === false
-                            ? 'bg-zinc-100 text-zinc-800 border-zinc-300 ring-1 ring-zinc-200 font-semibold'
-                            : 'bg-white text-zinc-700 border-[#E4E4E7] hover:bg-zinc-50'
+                            ? 'bg-[var(--text-main)] text-[var(--bg-surface)]'
+                            : 'bg-[var(--bg-surface)] border border-[var(--border-light)] text-[var(--text-secondary)] hover:text-[var(--text-main)]'
                         }`}
                       >
-                        <span>Uncovered</span>
-                        {selectedCovered === false && <span>✓</span>}
+                        Uncovered
                       </button>
                     </div>
                   </div>
                 )}
+              </div>
 
-                {/* Next Question Button */}
-                <div className="pt-2 flex justify-end">
+              {/* ONE NEXT ACTION */}
+              <div className="pt-4 flex items-center justify-between">
+                <button
+                  onClick={handlePrev}
+                  disabled={currentIndex === 0}
+                  className="px-4 py-2 text-xs font-mono-num uppercase tracking-wider font-semibold border border-[var(--border-light)] hover:border-[var(--text-main)] text-[var(--text-main)] disabled:opacity-30 rounded-[6px] transition-smooth bg-[var(--bg-surface)] cursor-pointer"
+                >
+                  ← Prev
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {isSaving && (
+                    <span className="text-[10px] font-mono-num text-[var(--text-muted)] animate-pulse">
+                      Saving...
+                    </span>
+                  )}
                   <button
                     onClick={handleNext}
-                    className="px-6 py-2.5 text-xs font-semibold rounded-lg bg-[#18181B] text-white hover:bg-zinc-800 transition-colors shadow-xs flex items-center gap-2"
+                    className="px-6 py-2.5 text-xs font-mono-num uppercase tracking-wider font-semibold bg-[var(--text-main)] text-[var(--bg-surface)] hover:bg-[var(--accent-primary)] rounded-[6px] transition-smooth cursor-pointer shadow-sm"
                   >
-                    <span>{currentIndex + 1 < totalItems ? 'Next Question →' : 'Finish Session →'}</span>
+                    {currentIndex + 1 === totalItems
+                      ? (mode === 'questions' ? 'Finish Questions ✓' : 'Finish Cards ✓')
+                      : 'Next question →'}
                   </button>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
-      </div>
-    </main>
+      </main>
+
+      <footer className="border-t border-[var(--border-light)] py-4 px-4 sm:px-8 text-center text-xs font-mono-num text-[var(--text-muted)]">
+        INTERVIEW PREPARATION ELITE · FOCUS PRACTICE MODE
+      </footer>
+    </div>
   );
 }
 
@@ -572,12 +511,12 @@ export default function PracticePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#FAFAF9] flex items-center justify-center p-8">
-          <p className="text-xs text-[#71717A] animate-pulse">Loading Practice Session...</p>
+        <div className="min-h-screen bg-[var(--bg-page)] flex items-center justify-center text-xs font-mono-num text-[var(--text-muted)]">
+          INITIALIZING...
         </div>
       }
     >
-      <PracticeContent />
+      <PracticeStage />
     </Suspense>
   );
 }

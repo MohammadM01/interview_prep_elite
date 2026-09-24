@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-page: #F4FCFB;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F8FBFA;
+  --bg-subtle: #EBF3F3;
+  --border-light: #D4DDE2;
+  --border-medium: #ACBCBF;
+  --border-subtle: #E2EAEF;
+  --text-main: #243C4C;
+  --text-secondary: #698696;
+  --text-muted: #8EA1AB;
+  --accent-primary: #5289AD;
+  --accent-primary-hover: #41708F;
+  --accent-primary-subtle: #EAF3F7;
+  --accent-emerald: #1B7F5A;
+  --accent-amber: #B25E09;
+  --accent-rose: #C2413E;
+  --accent-violet: #6D5DA8;
+  --card-radius: 10px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html.dark {
+  --bg-page: #18181B;
+  --bg-surface: #1F1F23;
+  --bg-elevated: #27272A;
+  --bg-subtle: #2D2D34;
+  --border-light: #3F3F46;
+  --border-medium: #52525B;
+  --border-subtle: #333338;
+  --text-main: #F4F4F5;
+  --text-secondary: #A1A1AA;
+  --text-muted: #71717A;
+  --accent-primary: #5289AD;
+  --accent-primary-hover: #679DC2;
+  --accent-primary-subtle: #1E2D38;
+  --accent-emerald: #34D399;
+  --accent-amber: #FBBF24;
+  --accent-rose: #F87171;
+  --accent-violet: #A78BFA;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--bg-page);
+  color: var(--text-main);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Editorial Monospace Numbering */
+.font-mono-num {
+  font-family: var(--font-geist-mono), monospace;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+
+/* Subtle transitions */
+.transition-smooth {
+  transition-property: color, background-color, border-color, opacity, transform;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom scrollbar for clean editorial panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-medium);
 }
