@@ -26,7 +26,7 @@ CRITICAL INSTRUCTIONS:
    - 3: Complex architectural design / deep troubleshooting / edge-case scenario
 7. For each question provide:
    - "prompt": The direct, articulate interview question asked to the candidate.
-   - "answer_outline": Clear, actionable bullet points or rubric describing what a strong, competent answer must cover.
+   - "answer_outline": Clear, actionable bullet points or rubric describing what a strong, competent answer must cover. answer_outline MUST be a single string, not an array. Do not return arrays for answer_outline.
    - "difficulty": Integer 1, 2, or 3.
    - "requirement_ids": Array of valid requirement IDs tested by this question.
 8. If the requirements list is thin or limited, generate honest, focused questions strictly based on the available requirements. Do NOT hallucinate technologies or requirements not present in the reference data.
@@ -38,7 +38,7 @@ Output strictly valid JSON matching this schema:
       "requirement_ids": ["r1"],
       "category": "technical",
       "prompt": "Specific interview question...",
-      "answer_outline": "Key points a strong answer should demonstrate...",
+      "answer_outline": "Key points a strong answer should demonstrate (MUST be a single string, do not return arrays)...",
       "difficulty": 2
     }
   ]
@@ -81,8 +81,23 @@ export function validateAndAssignQuestionIds(rawQuestions, validRequirementIds, 
       );
     }
 
-    // 2. Validate answer_outline
-    const answerOutline = typeof q.answer_outline === 'string' ? q.answer_outline.trim() : '';
+    // 2. Validate answer_outline (defensively handles string or array of strings)
+    let answerOutline = '';
+    if (typeof q.answer_outline === 'string') {
+      answerOutline = q.answer_outline.trim();
+    } else if (Array.isArray(q.answer_outline)) {
+      answerOutline = q.answer_outline
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0)
+        .join('; ');
+    } else {
+      throw new LlmError(
+        `Question #${idx + 1} has an invalid answer_outline type. Expected string or array of strings`,
+        LLM_ERROR_CODES.SCHEMA_INVALID,
+        422
+      );
+    }
+
     if (!answerOutline || answerOutline.length < 5) {
       throw new LlmError(
         `Question #${idx + 1} has a missing or empty answer_outline`,

@@ -1,0 +1,5 @@
+.env
+.env.*
+tests/
+*.test.js
+node_modules/

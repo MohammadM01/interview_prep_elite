@@ -4,7 +4,7 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import MongoStore from 'connect-mongo';
 import { config } from './config/index.js';
-import { getMongoClientPromise, checkDatabaseHealth } from './config/database.js';
+import { getMongoClientPromise, checkDatabaseHealth, connectToDatabase, getDatabase } from './config/database.js';
 import authRoutes from './routes/auth.js';
 import kitsRoutes from './routes/kits.js';
 import jobsRoutes from './routes/jobs.js';
@@ -13,8 +13,21 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+const allowedOrigins = config.corsOrigin
+  ? config.corsOrigin.split(',').map((o) => o.trim()).filter(Boolean)
+  : [];
+
 app.use(cors({
-  origin: config.corsOrigin,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (config.corsOrigin === '*' || config.corsOrigin === 'true' || allowedOrigins.length === 0) {
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, config.corsOrigin);
+  },
   credentials: true
 }));
 
@@ -45,6 +58,19 @@ app.use(session({
     maxAge: 14 * 24 * 60 * 60 * 1000
   }
 }));
+
+// Ensure MongoDB connection is initialized for serverless environments
+app.use(async (req, res, next) => {
+  try {
+    if (!getDatabase()) {
+      await connectToDatabase();
+    }
+    next();
+  } catch (err) {
+    console.error('Database connection error in serverless request:', err.message);
+    next(err);
+  }
+});
 
 app.get('/api/health', async (req, res) => {
   const dbStatus = await checkDatabaseHealth();

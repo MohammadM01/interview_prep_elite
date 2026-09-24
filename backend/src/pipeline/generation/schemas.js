@@ -68,7 +68,23 @@ export const RawQuestionItemSchema = z.object({
   requirement_ids: z.array(z.string().min(1)).min(1, 'At least one requirement_id must be associated'),
   category: QuestionCategoryEnum,
   prompt: z.string().min(5, 'Question prompt must be at least 5 characters'),
-  answer_outline: z.string().min(5, 'Answer outline must be at least 5 characters'),
+  answer_outline: z.preprocess(
+    (val) => {
+      if (typeof val === 'string') {
+        return val.trim();
+      }
+      if (Array.isArray(val)) {
+        if (val.length === 0) return '';
+        const parts = val
+          .map((item) => (typeof item === 'string' ? item.trim() : ''))
+          .filter((item) => item.length > 0);
+        return parts.join('; ');
+      }
+      return val;
+    },
+    z.string({ invalid_type_error: 'Answer outline must be a string or non-empty array of strings' })
+      .min(5, 'Answer outline must be at least 5 characters')
+  ),
   difficulty: QuestionDifficultyEnum,
   follow_ups: z.array(z.string()).optional(),
   evaluation_criteria: z.array(z.string()).optional()

@@ -12,6 +12,7 @@ await import('./step9_practice.test.js');
 await import('./step10_evaluator.test.js');
 await import('./generation_retry.test.js');
 await import('./generation_fallback.test.js');
+await import('./question_schema_normalization.test.js');
 
 test('Teardown and Exit', async () => {
   await closeDatabaseConnection();
