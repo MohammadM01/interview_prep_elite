@@ -147,3 +147,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Evaluator generated output
+kits.json
+

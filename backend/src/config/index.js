@@ -16,6 +16,8 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   mongodbUri: process.env.MONGODB_URI || '',
   sessionSecret: process.env.SESSION_SECRET || 'dev-session-secret-change-in-production',
+  cookieSecure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === 'true' : process.env.NODE_ENV === 'production',
+  cookieSameSite: process.env.COOKIE_SAME_SITE || 'lax',
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || 'gemini-3.8-flash'
 };

@@ -1,8 +1,38 @@
 [
   {
-    "id": "case-01",
-    "jd": "Senior Backend Engineer\n\nWe are looking for a Senior Backend Engineer to build resilient distributed services. Requirements:\nMust have 5+ years of experience with Node.js and distributed systems.\nMust have strong understanding of database indexing, transactions, and REST APIs.\nBonus points for experience with Redis caching and Docker.",
-    "company_url": "https://example.com",
+    "id": "case-01-healthy",
+    "jd": "Senior Full Stack Engineer\nWe are looking for a Senior Full Stack Engineer to lead web platform and API architecture.\nMust have 5+ years of experience with Node.js, TypeScript, and MongoDB.\nMust have strong understanding of database indexing, async event loops, and REST APIs.\nShould have experience with React or Next.js and TailwindCSS.\nNice to have experience with Docker containerization and CI/CD pipelines.",
+    "company_url": "https://stripe.com",
     "days": 5
+  },
+  {
+    "id": "case-02-thin-jd",
+    "jd": "Software Engineer needed. Work on backend systems and databases.",
+    "company_url": "https://github.com",
+    "days": 3
+  },
+  {
+    "id": "case-03-invalid-url",
+    "jd": "Backend Developer with Python and PostgreSQL experience. Must write unit tests and design microservices. Should know caching strategies.",
+    "company_url": "https://nonexistent-company-domain-404-xyz.test",
+    "days": 7
+  },
+  {
+    "id": "case-04-limited-research",
+    "jd": "Lead Cloud Infrastructure Architect.\nMust be proficient in Kubernetes clusters, Terraform, and cloud networking.\nMust know multi-region high availability architectures.\nShould know Prometheus and Grafana observability.",
+    "company_url": "https://example.com",
+    "days": 10
+  },
+  {
+    "id": "case-05-unusual-schedule-1day",
+    "jd": "Urgent contract DevOps Engineer.\nMust know Linux bash scripting, Docker containerization, and AWS IAM.\nMust be ready for interview tomorrow.",
+    "company_url": "https://example.org",
+    "days": 1
+  },
+  {
+    "id": "case-06-unusual-schedule-60days",
+    "jd": "Staff Distributed Systems Researcher.\nMust know Paxos/Raft consensus algorithms.\nMust know distributed storage replication and Byzantine fault tolerance.\nShould know Rust or C++ systems programming.\nNice to have research publications in ACM/IEEE.",
+    "company_url": "https://example.net",
+    "days": 60
   }
 ]

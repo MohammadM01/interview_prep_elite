@@ -39,8 +39,8 @@ app.use(session({
   store: sessionStore,
   cookie: {
     httpOnly: true,
-    secure: config.env === 'production',
-    sameSite: 'lax',
+    secure: config.cookieSecure,
+    sameSite: config.cookieSameSite,
     path: '/',
     maxAge: 14 * 24 * 60 * 60 * 1000
   }

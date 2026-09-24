@@ -41,7 +41,7 @@ export async function callGeminiApi({
   system,
   input,
   model = process.env.GEMINI_MODEL || DEFAULT_MODEL,
-  timeoutMs = 15000
+  timeoutMs = parseInt(process.env.LLM_TIMEOUT_MS, 10) || 30000
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
 
