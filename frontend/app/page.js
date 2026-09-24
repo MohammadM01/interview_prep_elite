@@ -139,7 +139,7 @@ export default function GuidedHomePage() {
       setActiveKit(data.kit);
       setViewState('generating');
 
-      // Step 2: Trigger Staged Generation sequentially (/start -> /content -> /finalize)
+      // Step 2: Trigger Staged Generation sequentially (/start -> /questions -> /flashcards -> /finalize)
       if (kitId) {
         (async () => {
           try {
@@ -153,24 +153,34 @@ export default function GuidedHomePage() {
               throw new Error(errData.error?.message || 'Stage 1 (Research & Extraction) failed');
             }
 
-            // Stage 2: Question & Flashcard Content Generation
-            const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/content`, {
+            // Stage 2: Question Generation
+            const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/questions`, {
               method: 'POST',
               credentials: 'include'
             });
             if (!res2.ok) {
               const errData = await res2.json().catch(() => ({}));
-              throw new Error(errData.error?.message || 'Stage 2 (Questions & Flashcards) failed');
+              throw new Error(errData.error?.message || 'Stage 2 (Questions) failed');
             }
 
-            // Stage 3: Coverage Analysis & Preparation Schedule Finalization
-            const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+            // Stage 3: Flashcard Generation
+            const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/flashcards`, {
               method: 'POST',
               credentials: 'include'
             });
             if (!res3.ok) {
               const errData = await res3.json().catch(() => ({}));
-              throw new Error(errData.error?.message || 'Stage 3 (Coverage & Schedule) failed');
+              throw new Error(errData.error?.message || 'Stage 3 (Flashcards) failed');
+            }
+
+            // Stage 4: Coverage Analysis & Preparation Schedule Finalization
+            const res4 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+              method: 'POST',
+              credentials: 'include'
+            });
+            if (!res4.ok) {
+              const errData = await res4.json().catch(() => ({}));
+              throw new Error(errData.error?.message || 'Stage 4 (Coverage & Schedule) failed');
             }
           } catch (stageErr) {
             console.error('Staged generation pipeline error:', stageErr);

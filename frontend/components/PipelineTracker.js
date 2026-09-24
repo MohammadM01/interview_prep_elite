@@ -22,24 +22,20 @@ export default function PipelineTracker({ currentStage, error, onRetry }) {
       'role_analysis',
       'analysis_completed',
       'question_generation',
+      'questions_completed',
       'flashcard_generation',
+      'flashcards_completed',
+      'coverage_check',
       'coverage_checking',
+      'coverage_second_pass',
       'schedule_generation',
+      'generation_completed',
       'completed'
     ];
 
     const currentIdx = stageOrder.indexOf(currentStage || 'queued');
 
-    const stageMap = {
-      research: ['research', 'research_completed'],
-      requirements_extraction: ['requirements_extraction', 'company_brief', 'role_analysis', 'analysis_completed'],
-      question_generation: ['question_generation'],
-      flashcard_generation: ['flashcard_generation'],
-      coverage_checking: ['coverage_checking'],
-      schedule_generation: ['schedule_generation']
-    };
-
-    if (currentStage === 'completed') return 'done';
+    if (currentStage === 'completed' || currentStage === 'generation_completed') return 'done';
 
     // Find index of current stage in our mapped display
     const mappedStages = ['research', 'requirements_extraction', 'question_generation', 'flashcard_generation', 'coverage_checking', 'schedule_generation'];
@@ -47,8 +43,10 @@ export default function PipelineTracker({ currentStage, error, onRetry }) {
 
     let activeMappedIdx = 0;
     if (currentIdx >= stageOrder.indexOf('schedule_generation')) activeMappedIdx = 5;
-    else if (currentIdx >= stageOrder.indexOf('coverage_checking')) activeMappedIdx = 4;
+    else if (currentIdx >= stageOrder.indexOf('coverage_check')) activeMappedIdx = 4;
+    else if (currentIdx >= stageOrder.indexOf('flashcards_completed')) activeMappedIdx = 4;
     else if (currentIdx >= stageOrder.indexOf('flashcard_generation')) activeMappedIdx = 3;
+    else if (currentIdx >= stageOrder.indexOf('questions_completed')) activeMappedIdx = 3;
     else if (currentIdx >= stageOrder.indexOf('question_generation')) activeMappedIdx = 2;
     else if (currentIdx >= stageOrder.indexOf('requirements_extraction')) activeMappedIdx = 1;
     else activeMappedIdx = 0;

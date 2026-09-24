@@ -366,8 +366,9 @@ export async function executeKitGenerationStart({ kitId, jobId, userId, options 
 }
 
 /**
- * Stage 2: Question and Flashcard Content Generation.
- * Loads persisted Step 5 intermediate data and generates questions & flashcards.
+ * Stage 2: Question Generation Only.
+ * Loads persisted Step 5 intermediate data and generates ONLY questions.
+ * MUST NOT generate flashcards.
  *
  * @param {Object} params
  * @param {string|ObjectId} params.kitId
@@ -376,7 +377,7 @@ export async function executeKitGenerationStart({ kitId, jobId, userId, options 
  * @param {Object} [params.options]
  * @returns {Promise<{ status: string, stage: string, message: string, kit: Object, job: Object }>}
  */
-export async function executeKitGenerationContent({ kitId, jobId, userId, options = {} }) {
+export async function executeKitGenerationQuestions({ kitId, jobId, userId, options = {} }) {
   const db = getDatabase();
   const kitObjectId = typeof kitId === 'string' ? new ObjectId(kitId) : kitId;
   const userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
@@ -433,7 +434,7 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
 
   try {
     if (!kit.role || !kit.role.requirements || kit.role.requirements.length === 0 || !kit.company_brief) {
-      const prereqErr = new Error('Cannot generate content: Stage 1 (Research & Extraction) is incomplete.');
+      const prereqErr = new Error('Cannot generate questions: Stage 1 (Research & Extraction) is incomplete.');
       prereqErr.code = 'STAGE_PREREQUISITE_FAILED';
       prereqErr.status = 400;
       throw prereqErr;
@@ -447,119 +448,214 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
 
     let generatedQuestions = kit.questions || [];
 
-    // Stage 2.1: Question Generation
-    try {
-      await updateJobProgress(
-        GENERATION_STAGES.QUESTION_GENERATION,
-        STAGE_PROGRESS[GENERATION_STAGES.QUESTION_GENERATION]
-      );
+    await updateJobProgress(
+      GENERATION_STAGES.QUESTION_GENERATION,
+      STAGE_PROGRESS[GENERATION_STAGES.QUESTION_GENERATION]
+    );
 
-      generatedQuestions = await generateQuestions({
-        role,
-        companyBrief,
-        jdText,
-        options: {
-          provider,
-          timeoutMs,
-          model: draftModel,
-          fallbackModel
-        }
-      });
-
-      if (kit.questions && kit.questions.some((q) => q.state === 'pinned' || q.state === 'edited')) {
-        const merged = mergeGeneratedContent({
-          existingQuestions: kit.questions,
-          newQuestions: generatedQuestions
-        });
-        generatedQuestions = merged.questions;
+    generatedQuestions = await generateQuestions({
+      role,
+      companyBrief,
+      jdText,
+      options: {
+        provider,
+        timeoutMs,
+        model: draftModel,
+        fallbackModel
       }
+    });
 
-      await db.collection('kits').updateOne(
-        { _id: kitObjectId, user_id: userObjectId },
+    if (kit.questions && kit.questions.some((q) => q.state === 'pinned' || q.state === 'edited')) {
+      const merged = mergeGeneratedContent({
+        existingQuestions: kit.questions,
+        newQuestions: generatedQuestions
+      });
+      generatedQuestions = merged.questions;
+    }
+
+    await db.collection('kits').updateOne(
+      { _id: kitObjectId, user_id: userObjectId },
+      {
+        $set: {
+          questions: generatedQuestions,
+          updated_at: new Date()
+        }
+      }
+    );
+
+    await updateJobProgress('questions_completed', 65);
+
+    const updatedKit = await db.collection('kits').findOne({ _id: kitObjectId });
+    const updatedJob = jobObjectId
+      ? await db.collection('generation_jobs').findOne({ _id: jobObjectId })
+      : null;
+
+    return {
+      status: 'success',
+      stage: 'questions_completed',
+      message: 'Question generation completed successfully',
+      kit: {
+        id: updatedKit._id.toString(),
+        status: updatedKit.status,
+        source: updatedKit.source,
+        company_brief: updatedKit.company_brief,
+        role: updatedKit.role,
+        questions: updatedKit.questions,
+        flashcards: updatedKit.flashcards || [],
+        schedule: updatedKit.schedule,
+        coverage: updatedKit.coverage,
+        created_at: updatedKit.created_at,
+        updated_at: updatedKit.updated_at
+      },
+      job: updatedJob ? {
+        id: updatedJob._id.toString(),
+        status: updatedJob.status,
+        stage: updatedJob.stage,
+        progress: updatedJob.progress,
+        updated_at: updatedJob.updated_at
+      } : null
+    };
+  } catch (err) {
+    if (jobObjectId) {
+      await db.collection('generation_jobs').updateOne(
+        { _id: jobObjectId, user_id: userObjectId },
         {
           $set: {
-            questions: generatedQuestions,
+            status: 'failed',
+            stage: 'question_generation_failed',
+            error: {
+              code: err.code || 'QUESTION_GENERATION_FAILED',
+              message: err.message
+            },
             updated_at: new Date()
           }
         }
       );
-    } catch (qErr) {
-      if (jobObjectId) {
-        await db.collection('generation_jobs').updateOne(
-          { _id: jobObjectId, user_id: userObjectId },
-          {
-            $set: {
-              status: 'failed',
-              stage: 'question_generation_failed',
-              error: {
-                code: qErr.code || 'QUESTION_GENERATION_FAILED',
-                message: qErr.message
-              },
-              updated_at: new Date()
-            }
-          }
-        );
+    }
+    throw err;
+  } finally {
+    activeGenerations.delete(genKey);
+  }
+}
+
+/**
+ * Stage 3: Flashcard Generation Only.
+ * Loads persisted questions, requirements, role, and company brief, and generates ONLY flashcards.
+ * MUST NOT generate questions.
+ *
+ * @param {Object} params
+ * @param {string|ObjectId} params.kitId
+ * @param {string|ObjectId} [params.jobId]
+ * @param {string|ObjectId} params.userId
+ * @param {Object} [params.options]
+ * @returns {Promise<{ status: string, stage: string, message: string, kit: Object, job: Object }>}
+ */
+export async function executeKitGenerationFlashcards({ kitId, jobId, userId, options = {} }) {
+  const db = getDatabase();
+  const kitObjectId = typeof kitId === 'string' ? new ObjectId(kitId) : kitId;
+  const userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+  const { provider, timeoutMs } = options;
+
+  let kit = await db.collection('kits').findOne({
+    _id: kitObjectId,
+    user_id: userObjectId
+  });
+
+  if (!kit) {
+    const error = new Error('Interview kit not found or unauthorized');
+    error.code = 'NOT_FOUND';
+    error.status = 404;
+    throw error;
+  }
+
+  const genKey = kitObjectId.toString();
+  if (activeGenerations.has(genKey)) {
+    const error = new Error('Generation is already in progress for this kit');
+    error.code = 'GENERATION_IN_PROGRESS';
+    error.status = 409;
+    throw error;
+  }
+  activeGenerations.add(genKey);
+
+  let jobObjectId = null;
+  if (jobId) {
+    jobObjectId = typeof jobId === 'string' ? new ObjectId(jobId) : jobId;
+  } else {
+    const foundJob = await db.collection('generation_jobs').findOne(
+      { kit_id: kitObjectId, user_id: userObjectId },
+      { sort: { created_at: -1 } }
+    );
+    if (foundJob) {
+      jobObjectId = foundJob._id;
+    }
+  }
+
+  const updateJobProgress = async (stage, progress, extraStatus = 'running') => {
+    if (!jobObjectId) return;
+    await db.collection('generation_jobs').updateOne(
+      { _id: jobObjectId, user_id: userObjectId },
+      {
+        $set: {
+          status: extraStatus,
+          stage,
+          progress,
+          updated_at: new Date()
+        }
       }
-      throw qErr;
+    );
+  };
+
+  try {
+    if (!kit.role?.requirements?.length || !kit.questions?.length) {
+      const prereqErr = new Error('Cannot generate flashcards: Questions stage must be completed first.');
+      prereqErr.code = 'STAGE_PREREQUISITE_FAILED';
+      prereqErr.status = 400;
+      throw prereqErr;
     }
 
-    // Stage 2.2: Flashcard Generation
+    const role = kit.role;
+    const companyBrief = kit.company_brief;
+    const generatedQuestions = kit.questions;
+    const draftModel = options.draftModel || process.env.DRAFT_MODEL || 'gemini-3.6-flash';
+    const fallbackModel = options.fallbackModel || process.env.SCREEN_MODEL || 'gemini-3.5-flash-lite';
+
     let generatedFlashcards = [];
-    try {
-      await updateJobProgress(
-        GENERATION_STAGES.FLASHCARD_GENERATION,
-        STAGE_PROGRESS[GENERATION_STAGES.FLASHCARD_GENERATION]
-      );
 
-      generatedFlashcards = await generateFlashcards({
-        requirements: role.requirements,
-        questions: generatedQuestions,
-        companyBrief,
-        role,
-        options: {
-          provider,
-          timeoutMs,
-          model: draftModel,
-          fallbackModel
-        }
+    await updateJobProgress(
+      GENERATION_STAGES.FLASHCARD_GENERATION,
+      STAGE_PROGRESS[GENERATION_STAGES.FLASHCARD_GENERATION]
+    );
+
+    generatedFlashcards = await generateFlashcards({
+      requirements: role.requirements,
+      questions: generatedQuestions,
+      companyBrief,
+      role,
+      options: {
+        provider,
+        timeoutMs,
+        model: draftModel,
+        fallbackModel
+      }
+    });
+
+    if (kit.flashcards && kit.flashcards.some((f) => f.state === 'pinned' || f.state === 'edited')) {
+      const merged = mergeGeneratedContent({
+        existingFlashcards: kit.flashcards,
+        newFlashcards: generatedFlashcards
       });
-
-      if (kit.flashcards && kit.flashcards.some((f) => f.state === 'pinned' || f.state === 'edited')) {
-        const merged = mergeGeneratedContent({
-          existingFlashcards: kit.flashcards,
-          newFlashcards: generatedFlashcards
-        });
-        generatedFlashcards = merged.flashcards;
-      }
-
-      await db.collection('kits').updateOne(
-        { _id: kitObjectId, user_id: userObjectId },
-        {
-          $set: {
-            flashcards: generatedFlashcards,
-            updated_at: new Date()
-          }
-        }
-      );
-    } catch (fErr) {
-      if (jobObjectId) {
-        await db.collection('generation_jobs').updateOne(
-          { _id: jobObjectId, user_id: userObjectId },
-          {
-            $set: {
-              status: 'failed',
-              stage: 'flashcard_generation_failed',
-              error: {
-                code: fErr.code || 'FLASHCARD_GENERATION_FAILED',
-                message: fErr.message
-              },
-              updated_at: new Date()
-            }
-          }
-        );
-      }
-      throw fErr;
+      generatedFlashcards = merged.flashcards;
     }
+
+    await db.collection('kits').updateOne(
+      { _id: kitObjectId, user_id: userObjectId },
+      {
+        $set: {
+          flashcards: generatedFlashcards,
+          updated_at: new Date()
+        }
+      }
+    );
 
     if (options.step6Only) {
       const validatedStep6 = Step6KitSchema.parse({
@@ -589,7 +685,7 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
         'completed'
       );
     } else {
-      await updateJobProgress('content_completed', 80);
+      await updateJobProgress('flashcards_completed', 80);
     }
 
     const updatedKit = await db.collection('kits').findOne({ _id: kitObjectId });
@@ -599,8 +695,8 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
 
     return {
       status: 'success',
-      stage: options.step6Only ? 'generation_completed' : 'content_completed',
-      message: 'Stage 2 (Questions & Flashcards) completed successfully',
+      stage: options.step6Only ? 'generation_completed' : 'flashcards_completed',
+      message: 'Flashcard generation completed successfully',
       kit: {
         id: updatedKit._id.toString(),
         status: updatedKit.status,
@@ -629,9 +725,9 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
         {
           $set: {
             status: 'failed',
-            stage: 'content_generation_failed',
+            stage: 'flashcard_generation_failed',
             error: {
-              code: err.code || 'CONTENT_GENERATION_FAILED',
+              code: err.code || 'FLASHCARD_GENERATION_FAILED',
               message: err.message
             },
             updated_at: new Date()
@@ -643,6 +739,30 @@ export async function executeKitGenerationContent({ kitId, jobId, userId, option
   } finally {
     activeGenerations.delete(genKey);
   }
+}
+
+/**
+ * Backward compatibility wrapper for combined content generation.
+ */
+export async function executeKitGenerationContent({ kitId, jobId, userId, options = {} }) {
+  const qRes = await executeKitGenerationQuestions({ kitId, jobId, userId, options });
+  const fRes = await executeKitGenerationFlashcards({ kitId, jobId: qRes.job?.id || jobId, userId, options });
+
+  const db = getDatabase();
+  const userObjectId = typeof userId === 'string' ? new ObjectId(userId) : userId;
+  const jobObjectId = fRes.job?.id ? new ObjectId(fRes.job.id) : null;
+  if (jobObjectId && !options.step6Only) {
+    await db.collection('generation_jobs').updateOne(
+      { _id: jobObjectId, user_id: userObjectId },
+      { $set: { stage: 'content_completed', updated_at: new Date() } }
+    );
+  }
+
+  return {
+    ...fRes,
+    stage: options.step6Only ? 'generation_completed' : 'content_completed',
+    message: 'Stage 2 (Questions & Flashcards) completed successfully'
+  };
 }
 
 /**

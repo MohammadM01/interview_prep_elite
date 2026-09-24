@@ -41,24 +41,34 @@ export default function KitCreator({ currentUser: propUser }) {
         throw new Error(err1.error?.message || 'Stage 1 failed');
       }
 
-      // Stage 2
-      const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/content`, {
+      // Stage 2: Questions
+      const res2 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/questions`, {
         method: 'POST',
         credentials: 'include'
       });
       if (!res2.ok) {
         const err2 = await res2.json().catch(() => ({}));
-        throw new Error(err2.error?.message || 'Stage 2 failed');
+        throw new Error(err2.error?.message || 'Stage 2 (Questions) failed');
       }
 
-      // Stage 3
-      const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+      // Stage 3: Flashcards
+      const res3 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/flashcards`, {
         method: 'POST',
         credentials: 'include'
       });
-      const data = await res3.json();
-
       if (!res3.ok) {
+        const err3 = await res3.json().catch(() => ({}));
+        throw new Error(err3.error?.message || 'Stage 3 (Flashcards) failed');
+      }
+
+      // Stage 4: Finalize
+      const res4 = await fetch(`${API_BASE}/api/kits/${kitId}/generate/finalize`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res4.json();
+
+      if (!res4.ok) {
         setGenerationState((prev) => ({
           ...prev,
           [kitId]: {

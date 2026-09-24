@@ -8,6 +8,8 @@ import {
   startKitAnalysis,
   startKitGeneration,
   startKitGenerationStart,
+  startKitGenerationQuestions,
+  startKitGenerationFlashcards,
   startKitGenerationContent,
   startKitGenerationFinalize,
   updateKitHandler,
@@ -30,6 +32,8 @@ router.post('/:id/research', startKitResearch);
 router.get('/:id/research', getKitResearch);
 router.post('/:id/analyze', startKitAnalysis);
 router.post('/:id/generate/start', startKitGenerationStart);
+router.post('/:id/generate/questions', startKitGenerationQuestions);
+router.post('/:id/generate/flashcards', startKitGenerationFlashcards);
 router.post('/:id/generate/content', startKitGenerationContent);
 router.post('/:id/generate/finalize', startKitGenerationFinalize);
 router.post('/:id/generate', startKitGeneration);

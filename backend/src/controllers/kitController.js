@@ -220,6 +220,52 @@ export async function startKitGenerationStart(req, res) {
   }
 }
 
+export async function startKitGenerationQuestions(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitGenerationQuestions } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitGenerationQuestions({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit generation questions error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'STAGE_PREREQUISITE_FAILED' ? 400 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_QUESTIONS_FAILED',
+        message: error.message || 'An error occurred during stage 2 question generation'
+      }
+    });
+  }
+}
+
+export async function startKitGenerationFlashcards(req, res) {
+  try {
+    const { id } = req.params;
+    const { executeKitGenerationFlashcards } = await import('../pipeline/generation/index.js');
+
+    const result = await executeKitGenerationFlashcards({
+      kitId: id,
+      userId: req.user.id
+    });
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Kit generation flashcards error:', error);
+    const status = error.status || (error.code === 'NOT_FOUND' ? 404 : error.code === 'STAGE_PREREQUISITE_FAILED' ? 400 : error.code === 'GENERATION_IN_PROGRESS' ? 409 : 500);
+    return res.status(status).json({
+      error: {
+        code: error.code || 'GENERATION_FLASHCARDS_FAILED',
+        message: error.message || 'An error occurred during stage 3 flashcard generation'
+      }
+    });
+  }
+}
+
 export async function startKitGenerationContent(req, res) {
   try {
     const { id } = req.params;
