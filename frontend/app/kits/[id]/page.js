@@ -223,6 +223,18 @@ export default function KitWorkspacePage() {
     return cleanSnapshot !== '' && currentSnapshot !== cleanSnapshot;
   }, [cleanSnapshot, currentSnapshot]);
 
+  const isIncomplete = useMemo(() => {
+    if (!kit) return false;
+    const hasReqs = Array.isArray(kit.role?.requirements) && kit.role.requirements.length > 0;
+    const hasQuestions = Array.isArray(kit.questions) && kit.questions.length > 0;
+    const hasFlashcards = Array.isArray(kit.flashcards) && kit.flashcards.length > 0;
+    const hasCoverage = Boolean(kit.coverage);
+    const hasSchedule = Boolean(kit.schedule?.days?.length);
+    const isJobFailed = kit.job?.status === 'failed' || activeJob?.status === 'failed';
+
+    return !hasReqs || !hasQuestions || !hasFlashcards || !hasCoverage || !hasSchedule || isJobFailed || kit.status === 'failed' || kit.status === 'queued';
+  }, [kit, activeJob]);
+
   // ==========================================
   // Question Handlers
   // ==========================================
@@ -446,17 +458,6 @@ export default function KitWorkspacePage() {
   const coveredShould = shouldReqs.filter((r) => coveredSet.has(r.id)).length;
   const coveredNice = niceReqs.filter((r) => coveredSet.has(r.id)).length;
 
-  const isIncomplete = useMemo(() => {
-    if (!kit) return false;
-    const hasReqs = Array.isArray(kit.role?.requirements) && kit.role.requirements.length > 0;
-    const hasQuestions = Array.isArray(kit.questions) && kit.questions.length > 0;
-    const hasFlashcards = Array.isArray(kit.flashcards) && kit.flashcards.length > 0;
-    const hasCoverage = Boolean(kit.coverage);
-    const hasSchedule = Boolean(kit.schedule?.days?.length);
-    const isJobFailed = kit.job?.status === 'failed' || activeJob?.status === 'failed';
-
-    return !hasReqs || !hasQuestions || !hasFlashcards || !hasCoverage || !hasSchedule || isJobFailed || kit.status === 'failed' || kit.status === 'queued';
-  }, [kit, activeJob]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-page)] text-[var(--text-main)] flex flex-col justify-between">
