@@ -46,12 +46,18 @@ export default function KitCreator({ currentUser: propUser }) {
       } else {
         const qCount = data.kit?.questions?.length || 0;
         const fCount = data.kit?.flashcards?.length || 0;
+        const schedDays = data.kit?.schedule?.days?.length || data.kit?.schedule?.days_available || 0;
+        const uncoveredCount = data.kit?.coverage?.uncovered_requirement_ids?.length || 0;
+        const coverageMsg = uncoveredCount === 0
+          ? 'All required areas covered'
+          : `${uncoveredCount} required area(s) need more questions`;
+
         setGenerationState((prev) => ({
           ...prev,
           [kitId]: {
             status: 'complete',
             stage: 'generation_completed',
-            message: `Ready: ${qCount} questions, ${fCount} flashcards`,
+            message: `Ready: ${qCount} questions · ${fCount} flashcards · ${coverageMsg} · ${schedDays}-day study plan`,
             data: data.kit
           }
         }));
@@ -436,11 +442,37 @@ export default function KitCreator({ currentUser: propUser }) {
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-[#71717A]">
-                      {kit.days_available} days schedule · {kit.jd_chars} chars
-                      {kit.questions_count > 0 && ` · ${kit.questions_count} questions`}
-                      {kit.flashcards_count > 0 && ` · ${kit.flashcards_count} flashcards`}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-[#71717A]">
+                      <span>{kit.schedule_days_count > 0 ? `${kit.schedule_days_count}-day study plan` : `${kit.days_available} days schedule`}</span>
+                      <span>·</span>
+                      <span>{kit.jd_chars} chars</span>
+                      {kit.questions_count > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="font-medium text-[#18181B]">{kit.questions_count} questions</span>
+                        </>
+                      )}
+                      {kit.flashcards_count > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="font-medium text-[#18181B]">{kit.flashcards_count} flashcards</span>
+                        </>
+                      )}
+                      {kit.coverage && (
+                        <>
+                          <span>·</span>
+                          {kit.coverage.uncovered_requirement_ids?.length === 0 ? (
+                            <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded font-medium">
+                              All required areas covered
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded font-medium">
+                              {kit.coverage.uncovered_requirement_ids.length} required area(s) need more questions
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                     {rState && (
                       <p className={`mt-1 text-[11px] font-medium ${
                         rState.status === 'running' ? 'text-blue-600' :
@@ -490,7 +522,7 @@ export default function KitCreator({ currentUser: propUser }) {
                       disabled={gState?.status === 'running'}
                       className="px-2.5 py-1 text-xs rounded border border-[#E4E4E7] bg-[#18181B] hover:bg-zinc-800 text-white disabled:opacity-50 transition-colors"
                     >
-                      {gState?.status === 'running' ? 'Generating...' : '3. Questions & Cards'}
+                      {gState?.status === 'running' ? 'Generating...' : '3. Generate Kit'}
                     </button>
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                       {kit.status}

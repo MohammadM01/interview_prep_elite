@@ -204,11 +204,11 @@ test('Step 7 Coverage Checking & Deterministic Schedule Suite', async (t) => {
       { id: 'q1', requirement_ids: ['r1'], category: 'technical', prompt: 'Q1', answer_outline: 'A1', difficulty: 2 }
     ];
 
-    // Mock returns an empty question or fails to cover r2
+    // Mock returns a question that fails to cover r2 (covers r1 again)
     const failingMock = new MockLlmProvider();
     failingMock.setOverrideHandler(() => JSON.stringify({
       questions: [
-        { requirement_ids: ['r1'], category: 'technical', prompt: 'Duplicate r1', answer_outline: 'A', difficulty: 2 }
+        { requirement_ids: ['r1'], category: 'technical', prompt: 'Duplicate r1 question', answer_outline: 'Valid outline that does not cover r2', difficulty: 2 }
       ]
     }));
 

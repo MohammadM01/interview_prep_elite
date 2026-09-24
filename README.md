@@ -59,3 +59,20 @@ Backend: npm run dev:backend (runs on http://localhost:5000)
 4. Run the batch evaluation command:
 
 npm run evaluate -- --input fixtures/cases.json --output scratch/kits.json
+
+## Pipeline & Deterministic Architecture
+
+1. **Research & Crawling**: Deterministic crawling adhering to robots.txt, SSRF protection, cheerio cleaning, and deterministic page ranking.
+2. **Requirement Extraction & Role Analysis**: Extracts grounded hiring requirements (`must`, `should`, `nice`) with deterministic `r1, r2...` IDs, grounded company brief, and role details.
+3. **Question & Flashcard Generation**: Generates targeted interview questions (`q1, q2...`) and study flashcards (`f1, f2...`) strictly grounded in extracted requirements.
+4. **Coverage Checking**:
+   - Pure deterministic backend logic. The LLM does NOT decide coverage.
+   - Evaluates whether all `must` and `should` requirements are covered by generated questions.
+   - Performs at most two passes: Pass 1 on initial questions; Pass 2 generates targeted questions for uncovered requirements.
+   - If requirements remain uncovered after Pass 2, they are preserved honestly in `coverage.uncovered_requirement_ids`.
+5. **Deterministic Study Scheduler**:
+   - Pure code logic (no LLM used for study schedule creation or time budgeting).
+   - Generates exactly `days_available` days (from 1 up to 60 days).
+   - Allocates deterministic integer study minutes (60 min/day standard budget).
+   - Priority and difficulty ordering: `must` before `should` before `nice`, harder questions (`difficulty 3 > 2 > 1`) earlier, deterministic tie-breaking by ID.
+   - Thin data produces an honest schedule without fabricated questions or fake company facts.
