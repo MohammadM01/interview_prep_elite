@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 
-export default function TopContextBar({ activeStep = '01', stepLabel = 'Create', totalSteps = '06' }) {
+export default function TopContextBar() {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
@@ -21,19 +21,6 @@ export default function TopContextBar({ activeStep = '01', stepLabel = 'Create',
           </span>
         </Link>
       </div>
-
-      {/* Center: Guided Step Indicator */}
-      {user && (
-        <div className="hidden sm:flex items-center gap-2 text-xs font-mono-num">
-          <span className="text-[var(--text-muted)] uppercase tracking-wider text-[11px]">
-            Step {activeStep} / {totalSteps}
-          </span>
-          <span className="text-[var(--border-medium)]">·</span>
-          <span className="text-[var(--accent-primary)] font-medium">
-            {stepLabel}
-          </span>
-        </div>
-      )}
 
       {/* Right: Theme Toggle & User Status */}
       <div className="flex items-center gap-3">
