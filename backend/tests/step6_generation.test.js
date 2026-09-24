@@ -329,7 +329,7 @@ test('Step 6 Question & Flashcard Generation Test Suite', async (t) => {
       kitId: createdKitIdUserA,
       jobId: createdJobIdUserA,
       userId: (await db.collection('kits').findOne({ _id: new ObjectId(createdKitIdUserA) })).user_id,
-      options: { provider: mock }
+      options: { provider: mock, step6Only: true }
     });
 
     assert.ok(genResult.kit);

@@ -49,9 +49,10 @@ Output strictly valid JSON matching this schema:
  *
  * @param {Array<Object>} rawQuestions
  * @param {Set<string>|Array<string>} validRequirementIds
+ * @param {number} [startCounter=1] Starting counter for ID assignment (e.g. 4 for q4, q5...)
  * @returns {Array<Object>}
  */
-export function validateAndAssignQuestionIds(rawQuestions, validRequirementIds) {
+export function validateAndAssignQuestionIds(rawQuestions, validRequirementIds, startCounter = 1) {
   if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
     throw new LlmError(
       'Question generation returned an empty or invalid question set',
@@ -65,7 +66,7 @@ export function validateAndAssignQuestionIds(rawQuestions, validRequirementIds) 
     : new Set(validRequirementIds || []);
 
   const normalizedQuestions = [];
-  let counter = 1;
+  let counter = typeof startCounter === 'number' && startCounter > 0 ? startCounter : 1;
 
   for (let idx = 0; idx < rawQuestions.length; idx++) {
     const q = rawQuestions[idx];
@@ -168,19 +169,29 @@ export function validateAndAssignQuestionIds(rawQuestions, validRequirementIds) 
 
 /**
  * Generates interview questions tailored to extracted requirements and role context.
+ * Can be run for initial full generation or targeted second-pass generation.
  *
  * @param {Object} params
  * @param {Object} params.role Role analysis object including requirements array
  * @param {Object} [params.companyBrief] Company intelligence brief
  * @param {string} [params.jdText] Raw JD text
+ * @param {Array<Object>} [params.targetRequirements] Specific subset of requirements to target (e.g. for second-pass coverage)
+ * @param {number} [params.startCounter=1] Starting counter for ID assignment (e.g. 4 for q4, q5...)
  * @param {Object} [params.options] Generation options
  * @returns {Promise<Array<Object>>} List of deterministic questions (q1, q2, ...)
  */
-export async function generateQuestions({ role, companyBrief = {}, jdText = '', options = {} }) {
+export async function generateQuestions({
+  role,
+  companyBrief = {},
+  jdText = '',
+  targetRequirements = null,
+  startCounter = 1,
+  options = {}
+}) {
   const { provider, timeoutMs, maxRetries = 3 } = options;
 
-  const requirements = Array.isArray(role?.requirements) ? role.requirements : [];
-  if (requirements.length === 0) {
+  const allRequirements = Array.isArray(role?.requirements) ? role.requirements : [];
+  if (allRequirements.length === 0) {
     throw new LlmError(
       'Cannot generate questions: No requirements found in role',
       LLM_ERROR_CODES.SCHEMA_INVALID,
@@ -188,10 +199,15 @@ export async function generateQuestions({ role, companyBrief = {}, jdText = '', 
     );
   }
 
-  const validReqIds = new Set(requirements.map((r) => r.id));
+  const validReqIds = new Set(allRequirements.map((r) => r.id));
+
+  // Determine which requirements to focus on for this prompt
+  const activeRequirements = Array.isArray(targetRequirements) && targetRequirements.length > 0
+    ? targetRequirements
+    : allRequirements;
 
   // Format reference data
-  const reqSummary = requirements
+  const reqSummary = activeRequirements
     .map((r) => `- [${r.id}] (kind: ${r.kind}, priority: ${r.priority}): ${r.text}`)
     .join('\n');
 
@@ -204,6 +220,10 @@ export async function generateQuestions({ role, companyBrief = {}, jdText = '', 
   const companySummary = companyBrief?.summary || 'Not provided';
   const whatTheyDo = companyBrief?.what_they_do || 'Not provided';
 
+  const focusNotice = Array.isArray(targetRequirements) && targetRequirements.length > 0
+    ? `\nIMPORTANT FOCUS: Specifically generate interview questions covering these UNCOVERED requirement IDs: ${targetRequirements.map((r) => r.id).join(', ')}.\n`
+    : '';
+
   const userPrompt = `[UNTRUSTED REFERENCE CONTEXT START]
 ROLE INFORMATION:
 Title: ${roleTitle}
@@ -215,10 +235,10 @@ COMPANY BRIEF:
 Summary: ${companySummary}
 What They Do: ${whatTheyDo}
 
-EXTRACTED REQUIREMENTS (USE THESE EXACT IDs):
+EXTRACTED REQUIREMENTS TO TEST (USE THESE EXACT IDs):
 ${reqSummary}
 [UNTRUSTED REFERENCE CONTEXT END]
-
+${focusNotice}
 Generate targeted interview questions that evaluate the candidate on the above requirements. Remember to assign each question real requirement IDs from the list above.`;
 
   const result = await generateStructured({
@@ -230,5 +250,5 @@ Generate targeted interview questions that evaluate the candidate on the above r
     maxRetries
   });
 
-  return validateAndAssignQuestionIds(result.questions, validReqIds);
+  return validateAndAssignQuestionIds(result.questions, validReqIds, startCounter);
 }

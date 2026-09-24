@@ -5,15 +5,19 @@ import { generateCompanyBrief } from './companyBrief.js';
 import { analyzeRole } from './roleAnalysis.js';
 import { generateQuestions, validateAndAssignQuestionIds } from './questionGeneration.js';
 import { generateFlashcards, validateAndAssignFlashcardIds } from './flashcardGeneration.js';
-import { Step5KitAnalysisSchema, Step6KitSchema, QuestionItemSchema, FlashcardItemSchema } from './schemas.js';
+import { Step5KitAnalysisSchema, Step6KitSchema, Step7KitSchema, QuestionItemSchema, FlashcardItemSchema, KitCoverageSchema, KitScheduleSchema } from './schemas.js';
 import { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
+import { calculateCoverage } from '../coverage/index.js';
+import { generateSchedule } from '../schedule/index.js';
 
 export { extractRequirementsFromJd, normalizeRequirementIds } from './requirementExtraction.js';
 export { generateCompanyBrief, validateAndFilterSources } from './companyBrief.js';
 export { analyzeRole } from './roleAnalysis.js';
 export { generateQuestions, validateAndAssignQuestionIds } from './questionGeneration.js';
 export { generateFlashcards, validateAndAssignFlashcardIds } from './flashcardGeneration.js';
-export { Step5KitAnalysisSchema, Step6KitSchema, QuestionItemSchema, FlashcardItemSchema } from './schemas.js';
+export { calculateCoverage, runCoveragePipeline } from '../coverage/index.js';
+export { generateSchedule } from '../schedule/index.js';
+export { Step5KitAnalysisSchema, Step6KitSchema, Step7KitSchema, QuestionItemSchema, FlashcardItemSchema, KitCoverageSchema, KitScheduleSchema } from './schemas.js';
 export { GENERATION_STAGES, STAGE_PROGRESS } from './types.js';
 
 /**
@@ -355,12 +359,154 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
     throw err;
   }
 
-  // STEP 5: Validate and Persist Complete Step 6 Kit
-  const validatedStep6 = Step6KitSchema.parse({
+  // If caller specifically requested Step 6 only, persist without coverage & schedule
+  if (options.step6Only) {
+    const validatedStep6 = Step6KitSchema.parse({
+      company_brief: companyBrief,
+      role,
+      questions: generatedQuestions,
+      flashcards: generatedFlashcards
+    });
+
+    const now = new Date();
+    await db.collection('kits').updateOne(
+      { _id: kitObjectId, user_id: userObjectId },
+      {
+        $set: {
+          questions: validatedStep6.questions,
+          flashcards: validatedStep6.flashcards,
+          schedule: kit.schedule || null,
+          coverage: kit.coverage || null,
+          status: 'ready',
+          updated_at: now
+        }
+      }
+    );
+
+    await updateJobProgress(
+      GENERATION_STAGES.GENERATION_COMPLETED,
+      STAGE_PROGRESS[GENERATION_STAGES.GENERATION_COMPLETED],
+      'completed'
+    );
+
+    const finalKit = await db.collection('kits').findOne({ _id: kitObjectId });
+    const finalJob = jobObjectId
+      ? await db.collection('generation_jobs').findOne({ _id: jobObjectId })
+      : null;
+
+    return {
+      kit: {
+        id: finalKit._id.toString(),
+        status: finalKit.status,
+        source: finalKit.source,
+        company_brief: finalKit.company_brief,
+        role: finalKit.role,
+        questions: finalKit.questions,
+        flashcards: finalKit.flashcards,
+        schedule: finalKit.schedule,
+        coverage: finalKit.coverage,
+        created_at: finalKit.created_at,
+        updated_at: finalKit.updated_at
+      },
+      job: finalJob
+        ? {
+            id: finalJob._id.toString(),
+            status: finalJob.status,
+            stage: finalJob.stage,
+            progress: finalJob.progress,
+            updated_at: finalJob.updated_at
+          }
+        : null
+    };
+  }
+
+  // STEP 5: Coverage Check Stage (Pass 1)
+  await updateJobProgress(
+    GENERATION_STAGES.COVERAGE_CHECK,
+    STAGE_PROGRESS[GENERATION_STAGES.COVERAGE_CHECK]
+  );
+
+  let coverageResult = calculateCoverage(role.requirements, generatedQuestions, 1);
+
+  // STEP 6: Coverage Second-Pass Generation (if uncovered must/should exist)
+  if (coverageResult.uncovered_requirement_ids.length > 0) {
+    await updateJobProgress(
+      GENERATION_STAGES.COVERAGE_SECOND_PASS,
+      STAGE_PROGRESS[GENERATION_STAGES.COVERAGE_SECOND_PASS]
+    );
+
+    const uncoveredSet = new Set(coverageResult.uncovered_requirement_ids);
+    const targetUncovered = (role.requirements || []).filter((r) => uncoveredSet.has(r.id));
+
+    try {
+      const secondPassQuestions = await generateQuestions({
+        role,
+        companyBrief,
+        jdText,
+        targetRequirements: targetUncovered,
+        startCounter: generatedQuestions.length + 1,
+        options: { provider, timeoutMs }
+      });
+
+      if (Array.isArray(secondPassQuestions) && secondPassQuestions.length > 0) {
+        // Append second-pass questions (never replace existing questions)
+        generatedQuestions = [...generatedQuestions, ...secondPassQuestions];
+      }
+    } catch (pass2Err) {
+      // If second pass generation fails, preserve uncovered requirements honestly (never fabricate)
+      console.warn('Second-pass question generation warning:', pass2Err.message);
+    }
+
+    // Recalculate coverage deterministically after Pass 2
+    coverageResult = calculateCoverage(role.requirements, generatedQuestions, 2);
+  }
+
+  // STEP 7: Deterministic Schedule Generation
+  await updateJobProgress(
+    GENERATION_STAGES.SCHEDULE_GENERATION,
+    STAGE_PROGRESS[GENERATION_STAGES.SCHEDULE_GENERATION]
+  );
+
+  const daysAvailable = kit.input?.days_available || 14;
+  let generatedSchedule;
+  try {
+    generatedSchedule = generateSchedule({
+      daysAvailable,
+      requirements: role.requirements,
+      questions: generatedQuestions,
+      dailyMinutes: 60
+    });
+  } catch (schedErr) {
+    if (jobObjectId) {
+      await db.collection('generation_jobs').updateOne(
+        { _id: jobObjectId, user_id: userObjectId },
+        {
+          $set: {
+            status: 'failed',
+            stage: 'schedule_generation_failed',
+            error: {
+              code: 'SCHEDULE_GENERATION_FAILED',
+              message: schedErr.message
+            },
+            updated_at: new Date()
+          }
+        }
+      );
+    }
+    throw schedErr;
+  }
+
+  // STEP 8: Validate and Persist Complete Step 7 Kit
+  const validatedStep7 = Step7KitSchema.parse({
     company_brief: companyBrief,
     role,
     questions: generatedQuestions,
-    flashcards: generatedFlashcards
+    flashcards: generatedFlashcards,
+    coverage: {
+      uncovered_requirement_ids: coverageResult.uncovered_requirement_ids,
+      passes: coverageResult.passes
+    },
+    schedule: generatedSchedule
   });
 
   const now = new Date();
@@ -368,11 +514,10 @@ export async function executeKitGeneration({ kitId, jobId, userId, options = {} 
     { _id: kitObjectId, user_id: userObjectId },
     {
       $set: {
-        questions: validatedStep6.questions,
-        flashcards: validatedStep6.flashcards,
-        // Leave schedule and coverage untouched / empty as per Step 6 requirements
-        schedule: kit.schedule || null,
-        coverage: kit.coverage || null,
+        questions: validatedStep7.questions,
+        flashcards: validatedStep7.flashcards,
+        coverage: validatedStep7.coverage,
+        schedule: validatedStep7.schedule,
         status: 'ready',
         updated_at: now
       }

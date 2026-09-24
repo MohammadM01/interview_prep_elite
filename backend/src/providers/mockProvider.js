@@ -77,6 +77,23 @@ export class MockLlmProvider {
       lowerSystem.includes('interview questions') ||
       lowerInput.includes('generate targeted interview questions')
     ) {
+      if (lowerInput.includes('uncovered requirement ids:')) {
+        const match = input.match(/UNCOVERED requirement IDs:\s*([^\n.]+)/i);
+        const uncoveredIds = match
+          ? match[1].split(',').map((id) => id.trim()).filter(Boolean)
+          : ['r2'];
+
+        return JSON.stringify({
+          questions: uncoveredIds.map((rId) => ({
+            requirement_ids: [rId],
+            category: 'technical',
+            prompt: `Targeted interview question covering uncovered requirement ${rId} in depth.`,
+            answer_outline: `Specific technical architectural points and trade-offs covering ${rId}.`,
+            difficulty: 3
+          }))
+        });
+      }
+
       return JSON.stringify({
         questions: [
           {

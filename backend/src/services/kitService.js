@@ -79,6 +79,8 @@ export async function getKitsForUser(userId) {
     jd_chars: k.source?.jd_chars || k.input?.jd?.length || 0,
     questions_count: k.questions?.length || 0,
     flashcards_count: k.flashcards?.length || 0,
+    coverage: k.coverage || null,
+    schedule_days_count: k.schedule?.days?.length || 0,
     created_at: k.created_at
   }));
 }
